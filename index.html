@@ -1495,6 +1495,10 @@ pbSpeedLevelSlider.addEventListener('input', ()=>{
   const level = parseInt(pbSpeedLevelSlider.value,10);
   speed = speedLevelToPx(level);
   syncAllSpeedSliders(level);
+  // Playback's canvas is a static image rendered ONCE (note spacing baked
+  // in as pixels at render time via renderSpeed) -- just changing `speed`
+  // has no visible effect until it's actually re-rendered.
+  if(lastRecording) renderPlayback();
 });
 
 const pbSpeedSlider = document.getElementById('pbSpeedSlider');
