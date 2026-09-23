@@ -3378,8 +3378,18 @@ function practiceLoadSavedCharts(){
   }catch(e){ return {}; }
 }
 function practiceSaveSavedCharts(obj){ safeSetStorage('sdvxSavedCharts', JSON.stringify(obj)); }
+let practiceSaveStatusTimer = null;
 function practiceSetSaveStatus(msg){
   document.getElementById('practiceSaveStatus').textContent = msg;
+  if(practiceSaveStatusTimer) clearTimeout(practiceSaveStatusTimer);
+  // Auto-clears after a few seconds so it doesn't linger stale across
+  // screen switches (譜面作成 <-> プレイ, or other tabs) -- otherwise a
+  // save/load/delete message from a while ago can still be sitting there
+  // when the user comes back, looking like it just happened again.
+  practiceSaveStatusTimer = setTimeout(()=>{
+    document.getElementById('practiceSaveStatus').textContent = '';
+    practiceSaveStatusTimer = null;
+  }, 3500);
 }
 function practiceRefreshSavedList(selectName){
   const sel = document.getElementById('practiceSavedList');
