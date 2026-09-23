@@ -1,0 +1,3963 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDVX Input Check</title>
+<style>
+  :root{
+    --bg: #10192b;
+    --bg-panel: #1c2942;
+    --line: #34496b;
+    --bt: #f0f4fa;
+    --fx: #c97b2e;
+    --fx-dim: #6b3d0f;
+    --vol-l: #00d4ff;
+    --vol-r: #ff2e9a;
+    --accent: #ffb020;
+    --text: #eef2f8;
+    --text-dim: #92a0b8;
+    --judge: #ffffff;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: #454b57;
+    color: var(--text);
+    font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+    overflow:hidden;
+  }
+  #app{ display:flex; flex-direction:column; height:100%; }
+
+  header{
+    display:flex; align-items:center; gap:16px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #17233a 0%, #10192b 100%);
+    flex-shrink:0;
+  }
+  .logo{
+    font-weight:800; letter-spacing:2px; font-size:15px;
+    background: linear-gradient(90deg, var(--vol-l), var(--vol-r));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .status{
+    font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:6px;
+  }
+  .dot{ width:8px; height:8px; border-radius:50%; background:#555; box-shadow:0 0 6px #555; }
+  .dot.on{ background:#33ffb0; box-shadow:0 0 8px #33ffb0; }
+  select{
+    background: #4a5d82; color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:5px 8px; font-size:12px;
+  }
+  .tabs{ display:flex; gap:20px; margin-left:auto; }
+  .tab{
+    background:transparent; border:none; border-bottom:2px solid transparent;
+    color:var(--text-dim);
+    padding:8px 2px; border-radius:0; font-size:13px; font-weight:600; cursor:pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .tab:hover{ color:var(--text); }
+  .tab.active{ background:transparent; color:var(--text); border-color:var(--vol-l); }
+
+  main{ flex:1; min-height:0; position:relative; }
+  .view{ position:absolute; inset:0; display:none; }
+  .view.active{ display:flex; }
+
+  /* ---------- Visualizer ---------- */
+  #vizView{ flex-direction:column; }
+  #vizToolbar{
+    display:flex; align-items:center; gap:14px; padding:8px 16px;
+    border-bottom:1px solid var(--line); font-size:12px; color:var(--text-dim); flex-shrink:0;
+  }
+  #vizToolbar label{ display:flex; align-items:center; gap:6px; }
+  input[type=range]{ width:110px; }
+  #canvasWrap{
+    flex:1; position:relative;
+    background:#454b57;
+    overflow:hidden;
+  }
+  #canvasFrame{
+    position:absolute;
+  }
+  canvas{ display:block; width:100%; height:100%; }
+  .hint{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    font-size:12px; color:var(--text-dim); background:rgba(10,14,24,.7);
+    padding:6px 14px; border-radius:20px; border:1px solid var(--line);
+    pointer-events:none;
+  }
+
+  /* ---------- Setup ---------- */
+  #setupView{ overflow-y:auto; padding: 24px 20px 60px; justify-content:center; }
+  #helpView{ overflow-y:auto; padding: 24px 20px 60px; justify-content:center; }
+  .setupCol{ max-width: 640px; margin:0 auto; width:100%; }
+  .panel{
+    background: var(--bg); border:1px solid var(--line); border-radius:12px;
+    padding:18px 20px; margin-bottom:16px;
+  }
+  .panel h3{ margin:0 0 4px; font-size:13px; color:var(--accent); letter-spacing:1px; }
+  .panel p.desc{ margin:0 0 14px; font-size:12px; color:var(--text-dim); line-height:1.6; }
+  .row{
+    display:flex; align-items:center; gap:10px; padding:8px 0;
+    border-top: 1px solid var(--line);
+  }
+  .row:first-of-type{ border-top:none; }
+  .row .tag{
+    width:64px; flex-shrink:0; font-weight:700; font-size:13px; text-align:center;
+    padding:4px 0; border-radius:6px;
+  }
+  .tag.bt{ background:var(--bt); color:#000; }
+  .tag.fx{ background:var(--fx); color:#000; }
+  .tag.vl{ background:var(--vol-l); color:#000; }
+  .tag.vr{ background:var(--vol-r); color:#000; }
+  .row .val{
+    flex:1; font-size:12px; color:#fff; font-family: "Consolas", monospace;
+  }
+  .row .val.assigned{ color:#4ade80; }
+  button{
+    background:#4a5d82; color:var(--text); border:1px solid var(--line);
+    padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer;
+  }
+  button:hover{ border-color:var(--vol-l); color:var(--vol-l); }
+  button:disabled{ opacity:.35; cursor:not-allowed; color:var(--text-dim); border-color:var(--line); background:var(--bg-panel); }
+  button:disabled:hover{ border-color:var(--line); color:var(--text-dim); }
+  button.listening{ background: var(--accent); color:#04121a; border-color:var(--accent); }
+  button.small{ padding:4px 8px; font-size:11px; }
+  button.dangerBtn{ background:#7a1f2b; border-color:#7a1f2b; color:#fff; }
+  button.dangerBtn:hover{ background:#9c2836; border-color:#9c2836; color:#fff; }
+  /* Detect/assign buttons in マッピング設定 use the same plain button style
+     as everywhere else -- no per-lane colour theming. */
+  .inline-check{ font-size:12px; color:var(--text); display:flex; align-items:center; gap:6px; }
+
+  /* ---------- Setup subtabs ---------- */
+  .subtabs{
+    display:flex; gap:20px; margin-bottom:14px;
+    background: var(--bg); border:1px solid var(--line); border-radius:10px;
+    padding:10px 16px;
+  }
+  .subtab{
+    background:transparent; border:none; border-bottom:2px solid transparent;
+    color:var(--text-dim);
+    padding:6px 2px; border-radius:0; font-size:13px; font-weight:600; cursor:pointer;
+    transition: color .15s, border-color .15s;
+  }
+  .subtab:hover{ color:var(--text); }
+  .subtab.active{ background:transparent; color:var(--text); border-color:var(--vol-l); }
+  .subview{ display:none; }
+  .subview.active{ display:block; }
+  .inputStatus{
+    font-size:12px; color:var(--accent); background:var(--bg);
+    border:1px solid var(--line); border-radius:8px;
+    padding:8px 14px; margin-bottom:14px;
+  }
+
+  /* ---------- Fixed (non-draggable) options panels ---------- */
+  .fixedPanel{ z-index:15; margin-bottom:0; }
+  .panelHeader{
+    font-size:11px; font-weight:700; color:#ffd23f;
+    margin:-18px -20px 12px -20px; padding:8px 20px;
+    border-bottom:1px solid var(--line);
+    border-radius:12px 12px 0 0;
+    letter-spacing:1px;
+  }
+
+  /* ---------- VOL knob indicator (circle + direction arrows) ---------- */
+  .volIndicator{
+    position:absolute;
+  }
+  /* Each arrow is now positioned independently (absolute left, set in JS
+     per-arrow) at the exact x computed in computeFullGeometry's
+     volOuter*/volInner* fields, rather than tiled into equal-width flex
+     halves -- the two "inner" lanes (L⇨, R⇦) sit noticeably closer to the
+     keyboard than a plain half-split would put them, matching the BT lane
+     pitch (see computeFullGeometry). */
+  .volArrows{ position:relative; width:100%; height:100%; }
+  .volArrow{
+    position:absolute; top:50%;
+    transform:translate(-50%,-50%);
+    font-size:28px; line-height:1; font-weight:700;
+    color:transparent; -webkit-text-stroke:1.8px rgba(255,255,255,0.9);
+    opacity:.85;
+    transition: color .06s, opacity .06s, text-shadow .06s, -webkit-text-stroke-color .06s;
+  }
+  .volArrow.active{ opacity:1; text-shadow:0 0 10px currentColor; }
+  .volCircle{
+    width:52px; height:52px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:15px; color:#fff;
+    border:2px solid rgba(255,255,255,.35);
+    box-shadow:0 0 0 rgba(0,0,0,0);
+  }
+
+  /* ---------- BT/FX button state indicator (below the lane) ---------- */
+  .btnRow{ position:absolute; height:46px; }
+  .btnSquare{
+    position:absolute; top:0; border-radius:4px;
+    background:#e8ecf2; border:2px solid #5a606b;
+    transform:translateX(-50%);
+    box-sizing:border-box;
+    transition: background .05s, border-color .05s, box-shadow .05s;
+  }
+  .btnSquare.active{
+    background:#00eaff; border-color:#00eaff;
+    box-shadow:0 0 10px #00eaff;
+  }
+  .btnFx{
+    position:absolute; border-radius:3px;
+    background:#d9873a; border:2px solid #5a606b;
+    transform:translateX(-50%);
+    box-sizing:border-box;
+    transition: background .05s, border-color .05s, box-shadow .05s;
+  }
+  .btnFx.active{
+    background:#ff2f4d; border-color:#ff2f4d;
+    box-shadow:0 0 10px #ff2f4d;
+  }
+
+  /* ---------- Practice pattern editor grid (columns=lanes, rows=time,
+     bottom-to-top to match how the chart actually flows on screen) ---------- */
+  .pgHeaderCell{
+    flex:1; font-size:10px; font-weight:700; text-align:center;
+    padding:4px 0; border-radius:4px;
+  }
+  .pgStepRow{ display:flex; gap:2px; margin-bottom:2px; padding-bottom:2px; }
+  .pgStepRow.beat{ border-bottom:2px solid #5a6478; }
+  .pgCell{
+    flex:1; height:22px; background:#141b2e; border:1px solid var(--line);
+    border-radius:3px; cursor:pointer;
+  }
+  .pgCell.on{ box-shadow: inset 0 0 0 2px rgba(255,255,255,.6); }
+
+  /* ---------- Practice: drag-and-drop chart editor palette ---------- */
+  .paletteChip{
+    height:56px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-size:15px; font-weight:800; color:#000; background:#f0f4fa;
+    border:2px solid #000; cursor:pointer; user-select:none; touch-action:none;
+  }
+  .paletteChip.paletteChipFx{ background:#c97b2e; color:#000; }
+  .paletteChip.paletteChipLong{ background:#f0f4fa; color:#000; font-size:12px; }
+  .paletteChip.paletteChipFxLong{ background:#c97b2e; color:#000; }
+  .paletteChip.active{ box-shadow:0 0 0 3px #ffd23f; border-color:#ffd23f; }
+  .paletteChip.dragging{ opacity:.4; }
+
+  /* ---------- Practice: block-based chart editor (1 block = 1 beat) ---------- */
+  .pbBlock{
+    border-bottom:2px solid #5a6478;
+    padding:6px 0;
+  }
+  .pbBlockHeader{
+    display:flex; flex-direction:column; align-items:stretch; gap:4px; height:100%;
+    padding:4px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="logo">SDVX INPUT CHECK</div>
+    <select id="gpSelect"></select>
+    <div class="tabs">
+      <button class="tab" data-view="helpView">使い方</button>
+      <button class="tab" data-view="setupView">マッピング</button>
+      <button class="tab active" data-view="vizView">プレイ</button>
+      <button class="tab" data-view="practiceView">譜面練習</button>
+      <button class="tab" data-view="playbackView">録画再生</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- HELP -->
+    <div id="helpView" class="view">
+      <div class="setupCol">
+        <p class="desc" style="color:#ffd23f; font-weight:700; margin-bottom:16px;">
+          ⚠ キーボード入力や、一部のコントローラーを使用の場合は一部の機能に支障が出る場合があります。詳しくは下の「注意事項」参照。
+        </p>
+        <div class="panel">
+          <h3>概要</h3>
+          <p class="desc" style="color:#fff;">このツールは、SDVXコントローラー（またはキーボード代用）の入力をリアルタイムに可視化する練習ツールです。実際のプレー画面のような見た目でBT/FX/VOLの入力タイミングを確認したり、自作の簡易譜面に合わせて精度を練習したり、プレイを録画して見返したりできます。</p>
+        </div>
+        <div class="panel">
+          <h3>まず最初にやること：マッピング</h3>
+          <p class="desc" style="color:#fff;">
+            1.「マッピング」タブを開きます。<br>
+            2. コントローラーを使う場合は「コントローラー」サブタブで、BT/FXの各行にある「検出」ボタンを押してから対応するボタンを押すと自動で割り当てられます。VOL（つまみ）は「検出開始」を押してからつまみを回すと割り当てられます。<br>
+            3. コントローラーが無い場合やキーボードでテストしたい場合は「キーボード」サブタブで同様にキーを割り当てられます。コントローラーとキーボードは同時に併用でき、どちらの入力も「プレイ」画面に反映されます。お使いのコントローラーがキーボードモード（PCからキーボード入力として認識される機器）の場合も、「コントローラー」ではなくこちらの「キーボード」サブタブで割り当ててください。<br><br>
+            マッピングやオプションの設定は自動的にブラウザに保存されるので、次回開いたときも引き継がれます。コントローラーは複数接続していても、ヘッダーのプルダウンから使うものを選べます。
+          </p>
+        </div>
+        <div class="panel">
+          <h3>「プレイ」タブ</h3>
+          <p class="desc" style="color:#fff;">
+            マッピングした入力がリアルタイムに流れてくるビジュアライザー画面です。右上の「オプション」パネルで、スクロール速度・ロング判定閾値・VOL-L/Rの色を調整できます。「● 録画」ボタンでプレイを録画でき（最大3分）、録画したものは「録画再生」タブで確認できます。
+          </p>
+        </div>
+        <div class="panel">
+          <h3>「譜面練習」タブ</h3>
+          <p class="desc" style="color:#fff;">
+            <b>譜面作成</b>：1/4小節を1ブロックとして、ブロックごとに好きな分割数でノーツを配置し、自分だけの練習パターンを作れます。「コピー」「貼り付け」で繰り返し部分を複製可能です。完成したら「練習する」を選択してください。<br><br>
+            <b>練習</b>：作った譜面がノーツとして流れてくるので、実際にプレイして精度を確認できます。BPM・スクロール速度・判定ライン位置を調整可能です。プレイ終了後、「再生する」で直前のプレイを見返すか、「戻る」でもう一度プレイできます。
+          </p>
+        </div>
+        <div class="panel">
+          <h3>「録画再生」タブ</h3>
+          <p class="desc" style="color:#fff;">
+            「プレイ」タブや「譜面練習」タブで録画したプレイを見返せます。シークバーで好きな位置に移動でき、再生速度（x0.1〜x1.0）やスクロール速度も調整可能です。キー音のON/OFFもここで設定できます。
+          </p>
+        </div>
+        <div class="panel">
+          <h3>使用例</h3>
+          <p class="desc" style="color:#fff; margin-bottom:0;">
+            ・譜面練習機能で反復練習：自作した簡易パターンを何度も繰り返し流し、BT/FXの精度を高める<br>
+            ・プレイの録画・見返し：実際のプレイを録画しておき、押し遅れや取りこぼしのタイミングを後から確認する<br>
+            ・OBS配信での画面キャプチャ：配信・録画ソフトで実際のゲーム画面と並べてキャプチャし、視聴者に自分の入力状況を見せながら配信する
+          </p>
+        </div>
+        <div class="panel" style="border-color:#ffd23f;">
+          <h3 style="color:#ffd23f;">⚠ 注意事項</h3>
+          <p class="desc" style="color:#fff;">
+            <b>コナステ・K-Shoot MANIAとの併用について</b><br>
+            キーボード入力、またはボタン操作がキーボード入力として処理される機器は、コナステやK-Shoot MANIAとの相性が悪く、併用できません。ブラウザ／OSの仕様上、キーボード入力は操作中（フォーカスがある）のウィンドウにしか送られないため、コナステやK-Shoot MANIAを操作している間は、本ツールはキーボード入力を検知できなくなります。本ツールを単体で使用する場合は問題ありません。
+          </p>
+          <p class="desc" style="color:#fff; margin-bottom:8px;">
+            <b>コントローラー別の対応状況</b>
+          </p>
+          <table style="width:100%; border-collapse:collapse; font-size:12px; color:#fff; margin-bottom:0;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--line);">
+                <th style="text-align:left; padding:6px 8px; color:var(--accent); font-weight:700;">コントローラー種別</th>
+                <th style="text-align:left; padding:6px 8px; color:var(--accent); font-weight:700;">状況</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:6px 8px;">キーボード</td>
+                <td style="padding:6px 8px;">併用不可</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:6px 8px;">公式販売コントローラー</td>
+                <td style="padding:6px 8px;">併用可能</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:6px 8px;">FAUCETWO</td>
+                <td style="padding:6px 8px;">Joystickモード、eAcloudモード…併用可能<br>keyboard&amp;mouseモード…併用不可</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:6px 8px;">DAOコン（新基板）</td>
+                <td style="padding:6px 8px;">EAcloudモード…併用可能<br>HID&amp;KSMモード…併用不可</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 8px;">DAOコン（旧基板）</td>
+                <td style="padding:6px 8px;">併用不可</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <h3>免責事項・その他</h3>
+          <p class="desc" style="color:#fff;">
+            本ツールはKONAMI株式会社およびSOUND VOLTEXとは一切関係のない、非公式のファン制作物です。ゲーム内の楽曲・グラフィック等の素材は使用していません。<br><br>
+            マッピングやオプションなどの設定はすべてお使いのブラウザ内（localStorage）に保存されるのみで、外部のサーバーに送信されることはありません。<br><br>
+            本ツールの利用によって生じたいかなる損害についても責任を負いかねます。また、予告なく内容を変更・終了する場合があります。ご利用は自己責任にてお願いいたします。<br><br>
+            不具合報告やご要望など、お困りのことがあれば <a href="https://x.com/yuuya1202" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">https://x.com/yuuya1202</a> までご連絡ください。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- VISUALIZER -->
+    <div id="vizView" class="view active">
+      <div id="canvasWrap">
+        <div id="canvasFrame">
+          <canvas id="cv"></canvas>
+          <div class="hint" id="cvHint">コントローラーを接続し、まず「マッピング」でボタンを割り当ててください</div>
+        </div>
+        <div id="homeOptionsPanel" class="panel fixedPanel" style="position:absolute; right:16px; top:16px; width:240px;">
+          <div class="panelHeader">オプション</div>
+          <div class="inline-check" style="justify-content:space-between; margin-bottom:8px;">
+            <span style="color:#fff;">スクロール速度</span>
+            <span id="speedVal" style="color:var(--text);">70</span>
+          </div>
+          <input type="range" id="speedSlider" min="1" max="100" value="70" style="width:100%; margin-bottom:10px;">
+          <div class="inline-check" style="justify-content:space-between; margin-bottom:8px; border-top:1px solid var(--line); padding-top:8px;">
+            <span style="color:#fff;">ロング判定閾値</span>
+            <span><input type="number" id="optLongThreshold" min="30" max="2000" step="10" value="200" style="width:60px;"> ms</span>
+          </div>
+          <div class="inline-check" style="justify-content:space-between; margin-bottom:8px; border-top:1px solid var(--line); padding-top:8px;">
+            <span style="color:#fff;">コントローラー位置</span>
+            <select id="optControlsPosition">
+              <option value="bottom">下</option>
+              <option value="top">上</option>
+            </select>
+          </div>
+          <div class="inline-check" style="justify-content:space-between; margin-bottom:8px; border-top:1px solid var(--line); padding-top:8px;">
+            <span style="color:#fff;">つまみ表示</span>
+            <input type="checkbox" id="optVolEnabled" checked>
+          </div>
+          <div class="inline-check" id="optColorLRow" style="justify-content:space-between; margin-bottom:6px;">
+            <span style="color:#fff;">VOL-L 色</span>
+            <select id="optColorL">
+              <option value="blue">青</option>
+              <option value="green">緑</option>
+              <option value="red">赤</option>
+              <option value="yellow">黄</option>
+            </select>
+          </div>
+          <div class="inline-check" id="optColorRRow" style="justify-content:space-between; margin-bottom:8px;">
+            <span style="color:#fff;">VOL-R 色</span>
+            <select id="optColorR">
+              <option value="blue">青</option>
+              <option value="green">緑</option>
+              <option value="red">赤</option>
+              <option value="yellow">黄</option>
+            </select>
+          </div>
+          <div style="border-top:1px solid var(--line); padding-top:10px;">
+            <button id="recBtn" style="width:100%;">● 録画</button>
+            <div id="recStatus" style="color:#fff; font-size:11px; margin-top:6px;"></div>
+          </div>
+        </div>
+        <div id="homeBelowMask" style="position:absolute; background:#454b57; pointer-events:none;"></div>
+        <div id="homeIndicatorLine" style="position:absolute; height:2px; background:#fff; box-shadow:0 0 6px rgba(255,255,255,.9); pointer-events:none;"></div>
+        <div class="volIndicator" id="volIndicatorL" style="position:absolute;">
+          <div class="volArrows">
+            <span class="volArrow" id="volArrowL_neg">⇦</span>
+            <span class="volArrow" id="volArrowL_pos">⇨</span>
+          </div>
+        </div>
+        <div class="volIndicator" id="volIndicatorR" style="position:absolute;">
+          <div class="volArrows">
+            <span class="volArrow" id="volArrowR_neg">⇦</span>
+            <span class="volArrow" id="volArrowR_pos">⇨</span>
+          </div>
+        </div>
+        <div class="btnRow" id="btnRowHome">
+          <div class="btnSquare" id="btnSquareHome_btA"></div>
+          <div class="btnSquare" id="btnSquareHome_btB"></div>
+          <div class="btnSquare" id="btnSquareHome_btC"></div>
+          <div class="btnSquare" id="btnSquareHome_btD"></div>
+          <div class="btnFx" id="btnFxHome_fxL"></div>
+          <div class="btnFx" id="btnFxHome_fxR"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PLAYBACK -->
+    <div id="playbackView" class="view" style="flex-direction:column;">
+      <div style="padding:8px 16px;border-bottom:1px solid var(--line);font-size:12px;color:var(--text-dim);flex-shrink:0;display:flex;align-items:center;gap:12px;">
+        <span id="playbackInfo" style="flex-shrink:0;">録画がありません</span>
+        <input type="range" id="pbSeekBar" min="0" max="1000" value="0" disabled style="flex:1;min-width:60px;">
+      </div>
+      <div id="playbackViewport" style="position:relative; flex:1; overflow:hidden;">
+        <div id="pbOptionsPanel" class="panel fixedPanel" style="position:absolute; right:16px; top:16px; width:240px; z-index:20;">
+          <div class="panelHeader">オプション</div>
+          <button id="playbackPlayBtn" style="width:100%; margin-bottom:10px;">▶ 再生</button>
+          <div class="inline-check" style="justify-content:space-between; margin-bottom:8px; border-top:1px solid var(--line); padding-top:10px;">
+            <span style="color:#fff;">スクロール速度</span>
+            <span id="pbSpeedLevelVal" style="color:var(--text);">70</span>
+          </div>
+          <input type="range" id="pbSpeedLevelSlider" min="1" max="100" value="70" style="width:100%; margin-bottom:10px;">
+          <div class="inline-check" style="justify-content:space-between; margin-bottom:10px;">
+            <span style="color:#fff;">コントローラー位置</span>
+            <select id="optPbControlsPosition">
+              <option value="bottom">下</option>
+              <option value="top">上</option>
+            </select>
+          </div>
+          <label class="inline-check" style="margin-bottom:10px;"><input type="checkbox" id="optPlaybackKeySound"> 🔊 キー音</label>
+          <div style="border-top:1px solid var(--line); padding-top:10px;">
+            <div class="inline-check" style="justify-content:space-between; margin-bottom:6px;">
+              <span style="color:#fff;">再生速度</span>
+              <span id="pbSpeedVal" style="color:var(--text);">x1.0</span>
+            </div>
+            <input type="range" id="pbSpeedSlider" min="0.1" max="1.0" step="0.1" style="width:100%;">
+          </div>
+        </div>
+        <div id="playbackScroll" style="position:absolute; inset:0; overflow-y:auto;overflow-x:hidden;display:flex;justify-content:center;background:#454b57;padding-right:260px;box-sizing:border-box;">
+          <canvas id="playbackCanvas"></canvas>
+        </div>
+        <div id="pbBelowMask" style="display:none; position:absolute; left:0; right:0; bottom:0; background:#454b57; pointer-events:none;"></div>
+        <div id="pbJudgeLine" style="display:none; position:absolute; left:0; right:0; height:2px; background:#fff; box-shadow:0 0 6px rgba(255,255,255,.9); pointer-events:none;"></div>
+        <div class="volIndicator" id="pbVolIndicatorL" style="display:none; position:absolute; transform:translateY(-50%); pointer-events:none;">
+          <div class="volArrows">
+            <span class="volArrow" id="pbVolArrowL_neg">⇦</span>
+            <span class="volArrow" id="pbVolArrowL_pos">⇨</span>
+          </div>
+        </div>
+        <div class="volIndicator" id="pbVolIndicatorR" style="display:none; position:absolute; transform:translateY(-50%); pointer-events:none;">
+          <div class="volArrows">
+            <span class="volArrow" id="pbVolArrowR_neg">⇦</span>
+            <span class="volArrow" id="pbVolArrowR_pos">⇨</span>
+          </div>
+        </div>
+        <div class="btnRow" id="btnRowPb" style="display:none; pointer-events:none;">
+          <div class="btnSquare" id="btnSquarePb_btA"></div>
+          <div class="btnSquare" id="btnSquarePb_btB"></div>
+          <div class="btnSquare" id="btnSquarePb_btC"></div>
+          <div class="btnSquare" id="btnSquarePb_btD"></div>
+          <div class="btnFx" id="btnFxPb_fxL"></div>
+          <div class="btnFx" id="btnFxPb_fxR"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRACTICE -->
+    <div id="practiceView" class="view" style="flex-direction:column;">
+      <!-- 譜面作成 -->
+      <div id="practiceChartSub" style="flex:1; min-height:0; display:flex; flex-direction:column;">
+        <div style="flex:1; min-height:0; display:flex; gap:12px; margin:14px 20px 20px;">
+          <div style="flex-shrink:0; width:92px; display:flex; flex-direction:column; gap:10px; padding-top:4px;">
+            <div class="paletteChip" id="paletteChipBT" data-type="bt">BT</div>
+            <div class="paletteChip paletteChipFx" id="paletteChipFX" data-type="fx">FX</div>
+            <div class="paletteChip paletteChipLong" id="paletteChipBTLong" data-type="bt-long">BTロング</div>
+            <div class="paletteChip paletteChipLong paletteChipFxLong" id="paletteChipFXLong" data-type="fx-long">FXロング</div>
+            <div style="font-size:10px; color:#fff; line-height:1.6;">選んでから<br>クリックで配置<br><br>ドラッグで移動<br>選択+BSで削除</div>
+            <button id="practiceClearAllBtn" class="small" style="width:100%;">全クリア</button>
+          </div>
+          <div style="flex-shrink:0; display:flex; flex-direction:column;">
+            <div id="practiceChartScroll" style="flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; position:relative; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:4px;">
+              <div style="display:flex; gap:4px; align-items:flex-start;">
+                <div id="practiceChartBlockControls" style="display:flex; flex-direction:column-reverse; width:96px; flex-shrink:0;"></div>
+                <div style="position:relative; flex-shrink:0;">
+                  <canvas id="practiceChartCanvas" style="display:block;"></canvas>
+                  <div id="practiceDragPreview" style="display:none; position:absolute; pointer-events:none; border-radius:3px; z-index:5; opacity:0.75;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1; min-width:100px; max-width:420px; display:flex; flex-direction:column;">
+            <div style="font-size:11px; color:#fff; margin-bottom:4px; text-align:center;">完成イメージ</div>
+            <div id="practiceChartPreviewScroll" style="flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; position:relative; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:4px; display:flex; justify-content:center;">
+              <canvas id="practiceChartPreviewCanvas" style="display:block;"></canvas>
+            </div>
+          </div>
+          <div style="flex:1; min-width:260px; display:flex; flex-direction:column;">
+            <div class="panel" style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px;">
+              <h3>譜面作成</h3>
+              <p class="desc" style="color:#fff;">左のパレットで「BT」「FX」「BTロング」「FXロング」のいずれかを選ぶと配置モードになります。その状態でレーン上の任意の場所をクリックするとノーツが置けます（ロングは配置時は最小サイズで置かれます。長さを調整する場合はノーツをクリックし、上辺・下辺をドラッグして長さを調整できます）。</p>
+              <p class="desc" style="color:#fff;">配置済みのノーツはクリックすると選択状態となります。選択状態のノーツはドラッグすることで移動、Backspaceキーで削除できます。</p>
+              <p class="desc" style="color:#fff;">分割数・コピー・貼り付けは各ブロックの左側で操作してください。</p>
+              <label style="font-size:12px; color:#fff; display:flex; align-items:center; justify-content:flex-start; gap:6px; white-space:nowrap;">
+                総小節数（1小節=4ブロック）
+                <input type="number" id="practiceTotalBlocks" min="1" max="10" value="1" style="width:64px;">
+              </label>
+              <button id="practiceGoToPlayBtn" style="width:200px; align-self:flex-start; background:#2563eb; color:#fff; border-color:#2563eb; font-weight:700; white-space:nowrap;">練習する ▶</button>
+              <div style="border-top:1px solid var(--line); padding-top:10px; display:flex; flex-direction:column; gap:6px; width:300px; align-self:flex-start;">
+                <div style="font-size:12px; color:#fff; font-weight:700;">譜面の保存・読込</div>
+                <div style="display:flex; gap:4px;">
+                  <input type="text" id="practiceSaveName" placeholder="譜面名" style="width:240px; flex-shrink:0; padding:4px 6px;">
+                  <button id="practiceSaveBtn" class="small" style="flex-shrink:0;">保存</button>
+                </div>
+                <select id="practiceSavedList" style="width:240px; padding:4px;"><option value="">(保存された譜面)</option></select>
+                <div style="display:flex; gap:4px;">
+                  <button id="practiceLoadBtn" class="small" style="width:60px; flex-shrink:0;">読込</button>
+                  <button id="practiceDeleteBtn" class="small dangerBtn" style="width:60px; flex-shrink:0;">削除</button>
+                </div>
+                <div id="practiceSaveStatus" style="font-size:11px; color:#fff; min-height:14px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- プレイ -->
+      <div id="practicePlaySub" style="flex:1; min-height:0; display:none;">
+        <div id="practicePlayArea" style="flex:1; position:relative; background:#454b57;">
+          <canvas id="practicePlayCanvas"></canvas>
+          <div id="practiceJudgeLine" style="position:absolute; left:0; right:0; height:2px; background:#fff; box-shadow:0 0 6px rgba(255,255,255,.9); pointer-events:none;"></div>
+          <div id="practiceBelowMask" style="position:absolute; background:#454b57; pointer-events:none;"></div>
+          <div class="volIndicator" id="practiceVolIndicatorL" style="position:absolute; transform:translateY(-50%); pointer-events:none; opacity:.35;">
+            <div class="volArrows">
+              <span class="volArrow" id="practiceVolArrowL_neg">⇦</span>
+              <span class="volArrow" id="practiceVolArrowL_pos">⇨</span>
+            </div>
+          </div>
+          <div class="volIndicator" id="practiceVolIndicatorR" style="position:absolute; transform:translateY(-50%); pointer-events:none; opacity:.35;">
+            <div class="volArrows">
+              <span class="volArrow" id="practiceVolArrowR_neg">⇦</span>
+              <span class="volArrow" id="practiceVolArrowR_pos">⇨</span>
+            </div>
+          </div>
+          <div class="btnRow" id="btnRowPractice" style="pointer-events:none;">
+            <div class="btnSquare" id="btnSquarePractice_btA"></div>
+            <div class="btnSquare" id="btnSquarePractice_btB"></div>
+            <div class="btnSquare" id="btnSquarePractice_btC"></div>
+            <div class="btnSquare" id="btnSquarePractice_btD"></div>
+            <div class="btnFx" id="btnFxPractice_fxL"></div>
+            <div class="btnFx" id="btnFxPractice_fxR"></div>
+          </div>
+          <div id="practicePlayStatus" style="position:absolute; top:16px; left:50%; transform:translateX(-50%); color:#fff; font-size:16px; font-weight:700; background:rgba(10,14,24,.7); padding:6px 18px; border-radius:20px; white-space:nowrap; z-index:10;"></div>
+          <div id="practiceEmptyMsg" style="display:none; position:absolute; inset:0; align-items:center; justify-content:center; z-index:12; color:#fff; font-size:15px; font-weight:700; text-align:center; padding:20px;">
+            譜面がまだありません。「譜面作成」タブでノーツを配置してください。
+          </div>
+          <div id="practiceOptionsPanel" class="panel fixedPanel" style="position:absolute; right:16px; top:16px; width:220px;">
+            <div class="panelHeader">オプション</div>
+            <div class="inline-check" style="justify-content:space-between; margin-bottom:8px; white-space:nowrap;">
+              <span style="color:#fff;">スクロールスピード</span>
+              <span id="practiceSpeedLevelVal" style="color:var(--text);">70</span>
+            </div>
+            <input type="range" id="practiceSpeedLevelSlider" min="1" max="100" value="70" style="width:100%; margin-bottom:10px;">
+            <div class="inline-check" style="justify-content:space-between; margin-bottom:8px; white-space:nowrap; border-top:1px solid var(--line); padding-top:10px;">
+              <span style="color:#fff;">判定ライン位置</span>
+              <span id="practiceJudgeLineVal" style="color:var(--text);">0</span>
+            </div>
+            <input type="range" id="practiceJudgeLineSlider" min="0" max="300" value="0" style="width:100%; margin-bottom:10px;">
+            <label style="font-size:12px; color:#fff; display:flex; align-items:center; justify-content:space-between; gap:6px; white-space:nowrap; border-top:1px solid var(--line); padding-top:10px; margin-bottom:10px;">
+              BPM
+              <input type="number" id="practicePlayBpm" min="40" max="400" value="150" style="width:64px;">
+            </label>
+            <label class="inline-check" style="justify-content:space-between; margin-bottom:8px; white-space:nowrap;">
+              <span style="color:#fff;">ミラー</span>
+              <input type="checkbox" id="practiceMirrorToggle">
+            </label>
+            <label class="inline-check" style="justify-content:space-between; margin-bottom:14px; white-space:nowrap;">
+              <span style="color:#fff;">カウントイン</span>
+              <input type="checkbox" id="practiceCountInToggle" checked>
+            </label>
+            <button id="practicePlayStartBtn" style="width:100%; margin-bottom:6px; white-space:nowrap;">▶ スタート</button>
+            <button id="practiceBackToChartBtn" class="dangerBtn" style="width:100%; white-space:nowrap;">← 譜面作成に戻る</button>
+            <div id="practiceStatus" style="color:#fff; font-size:12px; text-align:center; margin-top:8px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- プレイ終了確認モーダル -->
+    <div id="practiceResultModal" style="display:none; position:fixed; inset:0; background:rgba(4,8,16,.6); z-index:50; align-items:center; justify-content:center;">
+      <div class="panel" style="width:280px; margin:0; text-align:center;">
+        <h3 style="margin-bottom:6px;">プレイ終了</h3>
+        <p class="desc" style="color:#fff;">結果を確認しますか？もう一度プレイしますか？</p>
+        <div style="display:flex; gap:10px; margin-top:8px;">
+          <button id="practiceModalReviewBtn" style="flex:1;">再生する</button>
+          <button id="practiceModalRetryBtn" style="flex:1; background:#2563eb; color:#fff; border-color:#2563eb;">戻る</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- SETUP -->
+    <div id="setupView" class="view">
+      <div class="setupCol">
+        <div class="subtabs">
+          <button class="subtab active" data-subview="mapController">コントローラー</button>
+          <button class="subtab" data-subview="mapKeyboard">キーボード</button>
+        </div>
+
+        <div id="mapController" class="subview active">
+          <div class="inputStatus" id="ctrlStatusLine">入力: 未接続</div>
+          <div class="panel">
+            <h3>BT / FX ボタン割り当て</h3>
+            <p class="desc" style="color:#fff;">各行の「検出」を押してから、コントローラーの対応するボタンを1回押してください。自動で割り当てられます。</p>
+            <div id="btFxRows"></div>
+          </div>
+          <div class="panel">
+            <h3>ツマミ（VOL-L / VOL-R）割り当て</h3>
+            <p class="desc" style="color:#fff;">
+              「検出開始」を押してから、つまみを回してください。自動で割り当てられます。
+            </p>
+            <div id="volRows"></div>
+          </div>
+        </div>
+
+        <div id="mapKeyboard" class="subview">
+          <div class="inputStatus">入力: キーボード認識中</div>
+          <div class="panel">
+            <h3>⌨️ キーボード割り当て</h3>
+            <p class="desc" style="color:#fff;">
+              コントローラーが無くても、ここでキーを割り当てれば可視化のロジックを試せます。
+              コントローラーとキーボード、どちらの入力も同時にプレイ画面へ反映されます。
+              各行の「検出」を押してから、対応するキーを1回押してください。自動で割り当てられます。
+            </p>
+            <p class="desc" style="color:#ffd23f; font-weight:700;">
+              ⚠ ブラウザの仕様上、キーボード入力はフォーカスのあるウィンドウにしか届きません。コナステなど他のソフトを操作している間は、本ツールはキーボード入力を検知できません（同時使用不可）。
+            </p>
+            <div id="btFxKeyRows"></div>
+            <div style="height:10px"></div>
+            <div id="volKeyRows"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ---------------- Gamepad state ---------------- */
+let gpIndex = null;
+let prevButtons = [];
+const LANES = ['btA','btB','btC','btD','fxL','fxR'];
+const LANE_LABEL = {btA:'BT-A',btB:'BT-B',btC:'BT-C',btD:'BT-D',fxL:'FX-L',fxR:'FX-R'};
+const LANE_TAG_CLASS = {btA:'bt',btB:'bt',btC:'bt',btD:'bt',fxL:'fx',fxR:'fx'};
+// Fixed per-lane colors. IMPORTANT: color is determined ONLY by lane, never by
+// tap/hold state, so a note's color can never "flip" mid-press.
+const LANE_COLOR = {
+  btA: '#f0f4fa',
+  btB: '#f0f4fa',
+  btC: '#f0f4fa',
+  btD: '#f0f4fa',
+  fxL: '#c97b2e',
+  fxR: '#c97b2e'
+};
+
+const defaultMapping = {
+  buttons: { btA:null, btB:null, btC:null, btD:null, fxL:null, fxR:null },
+  vol: {
+    L: { axis:null, invert:false, min:-1, max:1 },
+    R: { axis:null, invert:false, min:-1, max:1 }
+  },
+  keys: { btA:null, btB:null, btC:null, btD:null, fxL:null, fxR:null },
+  volKeys: { Lup:null, Ldown:null, Rup:null, Rdown:null }
+};
+let mapping = loadMapping();
+
+/* ---------------- Input state (keyboard + gamepad, both always live) ---------------- */
+function safeGetStorage(key){
+  try{ return localStorage.getItem(key); }catch(e){ return null; }
+}
+function safeSetStorage(key, val){
+  try{ localStorage.setItem(key, val); }catch(e){ /* storage unavailable, ignore */ }
+}
+
+const keysDown = {};
+let listeningKeyLane = null;   // for BT/FX key assignment
+let listeningVolKey = null;    // for VOL up/down key assignment
+const virtualVol = { L:0.5, R:0.5 };
+
+// Reverse lookup: keyCode -> lane, built/rebuilt whenever mapping changes,
+// so keydown/keyup handlers can resolve a lane in O(1) without scanning.
+let keyToLane = {};
+function rebuildKeyToLane(){
+  keyToLane = {};
+  LANES.forEach(lane=>{
+    const code = mapping.keys[lane];
+    if(code) keyToLane[code] = lane;
+  });
+}
+rebuildKeyToLane();
+
+document.addEventListener('keydown', (e)=>{
+  if(listeningKeyLane){
+    mapping.keys[listeningKeyLane] = e.code;
+    saveMapping();
+    rebuildKeyToLane();
+    updateKeyLabels();
+    resetKeyListenButtons();
+    listeningKeyLane = null;
+    e.preventDefault();
+    return;
+  }
+  if(listeningVolKey){
+    mapping.volKeys[listeningVolKey] = e.code;
+    saveMapping();
+    updateVolKeyLabels();
+    resetVolKeyListenButtons();
+    listeningVolKey = null;
+    e.preventDefault();
+    return;
+  }
+
+  // Ignore OS key-repeat entirely: a held key fires many synthetic keydown
+  // events, and treating each as a fresh press would spam duplicate notes.
+  if(e.repeat) return;
+
+  keysDown[e.code] = true;
+
+  // Drive note start directly from the event (event timestamp), instead of
+  // waiting for the next animation-frame poll. Keyboard input is always
+  // live (regardless of whether a gamepad is also connected), so pressing
+  // either shows up on screen.
+  if(keyToLane[e.code]){
+    const lane = keyToLane[e.code];
+    startNote(lane, performance.now());
+    e.preventDefault();
+  }
+});
+document.addEventListener('keyup', (e)=>{
+  keysDown[e.code] = false;
+  if(keyToLane[e.code]){
+    const lane = keyToLane[e.code];
+    endNote(lane, performance.now());
+  }
+});
+
+function loadMapping(){
+  try{
+    const raw = safeGetStorage('sdvxMapping');
+    if(raw) return Object.assign(structuredCloneSafe(defaultMapping), JSON.parse(raw));
+  }catch(e){}
+  return structuredCloneSafe(defaultMapping);
+}
+function structuredCloneSafe(o){ return JSON.parse(JSON.stringify(o)); }
+function saveMapping(){ safeSetStorage('sdvxMapping', JSON.stringify(mapping)); }
+
+/* ---------------- Tabs ---------------- */
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.view).classList.add('active');
+    if(btn.dataset.view === 'playbackView') renderPlayback();
+    else stopPlaybackScroll();
+    if(btn.dataset.view !== 'practiceView') stopPracticeRun();
+    // Leaving the practice tab (above) stops its idle redraw loop entirely.
+    // If we're now RE-entering practiceView and the play sub-screen (not
+    // the chart editor) was left showing, that loop needs to be explicitly
+    // restarted -- otherwise the canvas/judge-line/etc. stay frozen on
+    // whatever they last drew, and live option changes (e.g. the judge
+    // line position slider) silently stop having any visible effect.
+    if(btn.dataset.view === 'practiceView' &&
+       document.getElementById('practicePlaySub').style.display !== 'none'){
+      enterPracticePlayScreen();
+    }
+    if(btn.dataset.view === 'practiceView' &&
+       document.getElementById('practicePlaySub').style.display === 'none'){
+      renderPracticeChartEditor();
+    }
+    // Home's canvas layout is only recomputed on window resize or here --
+    // if a resize happened while this tab was hidden (see resizeCanvas's
+    // early-return guard), it would otherwise stay stale/broken until the
+    // next real window resize. Recompute fresh every time this tab opens.
+    if(btn.dataset.view === 'vizView') resizeCanvas();
+  });
+});
+document.querySelectorAll('.subtab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    if(!btn.dataset.subview) return; // handled separately (e.g. practice's chart/play toggle buttons)
+    document.querySelectorAll('.subtab').forEach(b=>{ if(b.dataset.subview) b.classList.remove('active'); });
+    document.querySelectorAll('.subview').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.subview).classList.add('active');
+  });
+});
+
+/* ---------------- Practice: chart⇔play screen switching ---------------- */
+function showPracticeChartSub(){
+  document.getElementById('practiceChartSub').style.display = 'flex';
+  document.getElementById('practicePlaySub').style.display = 'none';
+  stopPracticeRun();
+  renderPracticeChartEditor();
+}
+function showPracticePlaySub(){
+  document.getElementById('practiceChartSub').style.display = 'none';
+  document.getElementById('practicePlaySub').style.display = 'flex';
+  enterPracticePlayScreen();
+}
+document.getElementById('practiceGoToPlayBtn').addEventListener('click', showPracticePlaySub);
+document.getElementById('practiceBackToChartBtn').addEventListener('click', showPracticeChartSub);
+
+/* ---------------- Gamepad connection ---------------- */
+const gpSelect = document.getElementById('gpSelect');
+const ctrlStatusLine = document.getElementById('ctrlStatusLine');
+
+function refreshGamepadList(){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  gpSelect.innerHTML = '';
+  let any = false;
+  for(let i=0;i<pads.length;i++){
+    const p = pads[i];
+    if(!p) continue;
+    any = true;
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `[${i}] ${p.id.slice(0,40)}`;
+    gpSelect.appendChild(opt);
+  }
+  if(any){
+    if(gpIndex === null || !pads[gpIndex]) gpIndex = parseInt(gpSelect.value, 10);
+    gpSelect.value = gpIndex;
+    ctrlStatusLine.textContent = `入力: コントローラー認識中（${pads[gpIndex] ? pads[gpIndex].id.slice(0,40) : ''}）`;
+  } else {
+    gpIndex = null;
+    ctrlStatusLine.textContent = '入力: 未接続';
+  }
+}
+gpSelect.addEventListener('change', ()=>{ gpIndex = parseInt(gpSelect.value,10); });
+window.addEventListener('gamepadconnected', refreshGamepadList);
+window.addEventListener('gamepaddisconnected', refreshGamepadList);
+setInterval(refreshGamepadList, 1000);
+refreshGamepadList();
+
+/* ---------------- Setup: BT/FX rows ---------------- */
+const btFxRows = document.getElementById('btFxRows');
+let listeningLane = null;
+
+LANES.forEach(lane=>{
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `
+    <div class="tag ${LANE_TAG_CLASS[lane]}">${LANE_LABEL[lane]}</div>
+    <div class="val" id="val_${lane}">未割り当て</div>
+    <button class="small" data-lane="${lane}">検出</button>
+  `;
+  btFxRows.appendChild(row);
+});
+btFxRows.addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-lane]');
+  if(!btn) return;
+  listeningLane = btn.dataset.lane;
+  document.querySelectorAll('#btFxRows button').forEach(b=>b.classList.remove('listening'));
+  btn.classList.add('listening');
+  btn.textContent = '待機中…';
+});
+function updateBtFxLabels(){
+  LANES.forEach(lane=>{
+    const el = document.getElementById(`val_${lane}`);
+    const idx = mapping.buttons[lane];
+    const assigned = !(idx===null||idx===undefined);
+    el.textContent = assigned ? `ボタン index ${idx}` : '未割り当て';
+    el.classList.toggle('assigned', assigned);
+  });
+}
+updateBtFxLabels();
+
+/* ---------------- Setup: VOL rows ---------------- */
+const volRows = document.getElementById('volRows');
+['L','R'].forEach(side=>{
+  const row = document.createElement('div');
+  row.className='row';
+  const tagClass = side==='L'?'vl':'vr';
+  row.innerHTML = `
+    <div class="tag ${tagClass}">VOL-${side}</div>
+    <div class="val" id="val_vol${side}">未割り当て</div>
+    <button class="small" data-vol="${side}">検出開始</button>
+  `;
+  volRows.appendChild(row);
+});
+let volCalibrating = null; // 'L' or 'R'
+let volCalibSamples = null;
+volRows.addEventListener('click',(e)=>{
+  const btn = e.target.closest('button[data-vol]');
+  if(!btn) return;
+  volCalibrating = btn.dataset.vol;
+  volCalibSamples = {}; // axisIndex -> {min,max}
+  btn.classList.add('listening');
+  btn.textContent = '回してください…';
+  setTimeout(()=>{
+    finishVolCalibration(btn);
+  }, 2500);
+});
+function finishVolCalibration(btn){
+  btn.classList.remove('listening');
+  btn.textContent = '検出開始';
+  if(!volCalibSamples){ volCalibrating=null; return; }
+  let bestAxis = null, bestRange = 0;
+  for(const [axisStr, mm] of Object.entries(volCalibSamples)){
+    const range = mm.max - mm.min;
+    if(range > bestRange){ bestRange = range; bestAxis = parseInt(axisStr,10); }
+  }
+  if(bestAxis !== null && bestRange > 0.02){
+    const side = volCalibrating;
+    mapping.vol[side].axis = bestAxis;
+    mapping.vol[side].min = volCalibSamples[bestAxis].min;
+    mapping.vol[side].max = volCalibSamples[bestAxis].max;
+    saveMapping();
+    updateVolLabels();
+  }
+  volCalibrating = null;
+  volCalibSamples = null;
+}
+function updateVolLabels(){
+  ['L','R'].forEach(side=>{
+    const el = document.getElementById(`val_vol${side}`);
+    const v = mapping.vol[side];
+    const assigned = !(v.axis===null||v.axis===undefined);
+    el.textContent = assigned ? `軸 index ${v.axis}  range[${v.min.toFixed(2)}, ${v.max.toFixed(2)}]` : '未割り当て';
+    el.classList.toggle('assigned', assigned);
+  });
+}
+updateVolLabels();
+
+/* ---------------- Setup: keyboard BT/FX rows ---------------- */
+const btFxKeyRows = document.getElementById('btFxKeyRows');
+LANES.forEach(lane=>{
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `
+    <div class="tag ${LANE_TAG_CLASS[lane]}">${LANE_LABEL[lane]}</div>
+    <div class="val" id="keyval_${lane}">未割り当て</div>
+    <button class="small" data-keylane="${lane}">検出</button>
+  `;
+  btFxKeyRows.appendChild(row);
+});
+btFxKeyRows.addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-keylane]');
+  if(!btn) return;
+  listeningKeyLane = btn.dataset.keylane;
+  resetKeyListenButtons();
+  btn.classList.add('listening');
+  btn.textContent = 'キー入力待ち…';
+});
+function resetKeyListenButtons(){
+  document.querySelectorAll('#btFxKeyRows button').forEach(b=>{ b.classList.remove('listening'); b.textContent='検出'; });
+}
+function updateKeyLabels(){
+  LANES.forEach(lane=>{
+    const el = document.getElementById(`keyval_${lane}`);
+    const code = mapping.keys[lane];
+    el.textContent = code ? code : '未割り当て';
+    el.classList.toggle('assigned', !!code);
+  });
+}
+updateKeyLabels();
+
+/* ---------------- Setup: keyboard VOL rows ---------------- */
+const volKeyRows = document.getElementById('volKeyRows');
+const VOL_KEY_DEFS = [
+  {id:'Lup', label:'VOL-L ↑(右回転)', tag:'vl'},
+  {id:'Ldown', label:'VOL-L ↓(左回転)', tag:'vl'},
+  {id:'Rup', label:'VOL-R ↑(右回転)', tag:'vr'},
+  {id:'Rdown', label:'VOL-R ↓(左回転)', tag:'vr'},
+];
+VOL_KEY_DEFS.forEach(def=>{
+  const row = document.createElement('div');
+  row.className='row';
+  row.innerHTML = `
+    <div class="tag ${def.tag}">${def.label}</div>
+    <div class="val" id="volkeyval_${def.id}">未割り当て</div>
+    <button class="small" data-volkey="${def.id}">検出</button>
+  `;
+  volKeyRows.appendChild(row);
+});
+volKeyRows.addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-volkey]');
+  if(!btn) return;
+  listeningVolKey = btn.dataset.volkey;
+  resetVolKeyListenButtons();
+  btn.classList.add('listening');
+  btn.textContent = 'キー入力待ち…';
+});
+function resetVolKeyListenButtons(){
+  document.querySelectorAll('#volKeyRows button').forEach(b=>{ b.classList.remove('listening'); b.textContent='検出'; });
+}
+function updateVolKeyLabels(){
+  VOL_KEY_DEFS.forEach(def=>{
+    const el = document.getElementById(`volkeyval_${def.id}`);
+    const code = mapping.volKeys[def.id];
+    el.textContent = code ? code : '未割り当て';
+    el.classList.toggle('assigned', !!code);
+  });
+}
+updateVolKeyLabels();
+
+/* ---------------- Visualizer setup ---------------- */
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+// The slider shows a simple 1-100 "level" (px/s is meaningless to most
+// people); internally it still maps to the actual px/s scroll speed.
+const SPEED_PX_MIN = 150, SPEED_PX_MAX = 1380; // rescaled so the old level-75 speed now sits at level 100
+function speedLevelToPx(level){ return SPEED_PX_MIN + (level-1)/99*(SPEED_PX_MAX-SPEED_PX_MIN); }
+let speed = speedLevelToPx(70); // default level ~70
+// Keeps every scroll-speed slider (Home / Playback / Practice) showing the
+// same level whichever one the user actually drags.
+function syncAllSpeedSliders(level){
+  [['speedSlider','speedVal'], ['pbSpeedLevelSlider','pbSpeedLevelVal'], ['practiceSpeedLevelSlider','practiceSpeedLevelVal']].forEach(([sId,vId])=>{
+    const s = document.getElementById(sId), v = document.getElementById(vId);
+    if(s) s.value = level;
+    if(v) v.textContent = level;
+  });
+}
+document.getElementById('speedSlider').addEventListener('input', e=>{
+  const level = parseInt(e.target.value,10);
+  speed = speedLevelToPx(level);
+  syncAllSpeedSliders(level);
+});
+
+// Positions the BT/FX button indicators for one view, based on the ACTUAL
+// keyboard geometry (not a fixed-size flex row), so each square/bar lines
+// up with its real lane -- squares under each BT lane, FX bars centered
+// under their corresponding 2-lane span, between the BT rows.
+function positionBtnRow(rowEl, sqPrefix, fxPrefix, kbLeftCss, kbFrameWcss, topCss){
+  const unit = kbFrameWcss/4;
+  rowEl.style.left = kbLeftCss + 'px';
+  rowEl.style.top = topCss + 'px';
+  rowEl.style.width = kbFrameWcss + 'px';
+  const squareSize = unit*0.55*1.3; // BT: a true square (width === height), 1.3x bigger
+  const fxW = unit*0.8*1.3;         // FX: 1.3x wider
+  const fxH = 32 * (2/3) * 0.8;     // FX: further reduced height
+  ['btA','btB','btC','btD'].forEach((lane,idx)=>{
+    const el = document.getElementById(`${sqPrefix}_${lane}`);
+    if(el){
+      el.style.left = (unit*(idx+0.5))+'px';
+      el.style.width = squareSize+'px';
+      el.style.height = squareSize+'px';
+    }
+  });
+  const fxLEl = document.getElementById(`${fxPrefix}_fxL`);
+  const BT_FX_GAP = 10; // vertical gap between the BT squares and the FX bars below them (nudged up slightly)
+  if(fxLEl){
+    fxLEl.style.left = (unit*1)+'px'; // exactly between BT-A and BT-B
+    fxLEl.style.width = fxW+'px';
+    fxLEl.style.height = fxH+'px';
+    fxLEl.style.top = (squareSize+BT_FX_GAP)+'px';
+  }
+  const fxREl = document.getElementById(`${fxPrefix}_fxR`);
+  if(fxREl){
+    fxREl.style.left = (unit*3)+'px'; // exactly between BT-C and BT-D
+    fxREl.style.width = fxW+'px';
+    fxREl.style.height = fxH+'px';
+    fxREl.style.top = (squareSize+BT_FX_GAP)+'px';
+  }
+}
+
+// "NOW" line sits near the TOP. Fresh input appears there; as it ages it
+// drifts DOWN and eventually scrolls off the bottom. This is what makes a
+// forward A→B→C→D sequence read as a staircase rising to the right: D (most
+// recent) sits near the top, A (oldest) has sunk furthest down.
+const NOW_Y_RATIO = 0.02;
+
+const PLAYBACK_JUDGE_RATIO = 0.85; // judge line sits 85% down the viewport/canvas -- shared by Home and Playback so their indicator clusters sit at the same relative position
+
+const defaultOptions = {
+  longThresholdMs: 200,
+  volEnabled: true,
+  controlsPosition: 'bottom', // 'bottom' (default) | 'top' -- where the BT/FX/VOL indicator dashboard sits in the プレイ screen
+  pbControlsPosition: 'bottom', // same idea, for 録画再生
+  volColor: { L:'blue', R:'red' },
+  playbackKeySound: true,
+  playbackSpeedMultiplier: 1.0,
+  practiceJudgeLineOffset: 0 // px to shift Practice's judge line UP from its
+  // default position (0 = default/unchanged). Purely visual -- note timing
+  // (yFromMs) is computed FROM this same value, so whatever row of pixels
+  // the line ends up on is still exactly where/when each note is "due";
+  // nothing about the accept-timing logic itself changes.
+};
+function loadOptions(){
+  try{
+    const raw = safeGetStorage('sdvxOptions');
+    if(raw) return Object.assign(structuredCloneSafe(defaultOptions), JSON.parse(raw));
+  }catch(e){}
+  return structuredCloneSafe(defaultOptions);
+}
+function saveOptions(){ safeSetStorage('sdvxOptions', JSON.stringify(options)); }
+let options = loadOptions();
+
+// ---- Fixed-position options panels (always visible; not draggable) ----
+
+const CANVAS_ASPECT = 6/21; // width / height of the keyboard-only portion
+// The options panel is always visible now (no collapse toggle) and is
+// anchored to the right edge of its view, independently of the canvas's
+// own centering -- so canvas sizing needs to deliberately leave this much
+// room on the right, or a narrow enough window lets the two overlap (the
+// canvas, sized purely from available height, can grow wide enough to
+// reach into the panel's space before anything realizes there's a
+// conflict). 260px comfortably covers every panel's width (220-240px) plus
+// its right margin.
+const OPTIONS_PANEL_RESERVED_W = 260;
+function resizeCanvas(){
+  const wrapEl = document.getElementById('canvasWrap');
+  const frame = document.getElementById('canvasFrame');
+  // Home's canvas is only re-laid-out here (on window resize) or when the
+  // Home tab is activated (see the tab-click handler below) -- NOT on
+  // every draw frame like Practice/Playback. If this runs while the Home
+  // tab is hidden (e.g. a window resize while on another tab), the
+  // wrapper's size collapses to 0 and would otherwise corrupt the stored
+  // geometry until the next real resize event. Bail out instead, and let
+  // the tab-activation call pick up the correct size once visible again.
+  if(wrapEl.clientWidth === 0 || wrapEl.clientHeight === 0) return;
+  // Compute every position/size explicitly in JS -- canvasFrame is
+  // absolutely positioned (not flex-centered) so there's no ambiguity
+  // about where things end up.
+  const availH = wrapEl.clientHeight;
+  let kbFrameH = availH;
+  let kbFrameW = kbFrameH * CANVAS_ASPECT;
+  let geom = computeFullGeometry(kbFrameW);
+
+  const availW = wrapEl.clientWidth - OPTIONS_PANEL_RESERVED_W - 20; // leave room for the options panel + a small side margin
+  if(geom.totalW > availW){
+    kbFrameW = availW / (geom.totalW / kbFrameW);
+    kbFrameH = kbFrameW / CANVAS_ASPECT;
+    geom = computeFullGeometry(kbFrameW);
+  }
+
+  // Center within the space LEFT of the options panel, not the full wrap
+  // width -- otherwise a wide-enough canvas (or narrow-enough window)
+  // pushes its right edge straight into the panel.
+  const usableW = wrapEl.clientWidth - OPTIONS_PANEL_RESERVED_W;
+  const canvasLeft = Math.max(10, (usableW - geom.totalW)/2);
+  const canvasTop = Math.max(0, (wrapEl.clientHeight - kbFrameH)/2);
+
+  frame.style.left = canvasLeft + 'px';
+  frame.style.top = canvasTop + 'px';
+  frame.style.width = geom.totalW + 'px';
+  frame.style.height = kbFrameH + 'px';
+  cv.width = geom.totalW * devicePixelRatio;
+  cv.height = kbFrameH * devicePixelRatio;
+  cv.style.width = geom.totalW+'px';
+  cv.style.height = kbFrameH+'px';
+
+  // Position the L/R knob indicators and the BT/FX button row at the same
+  // relative position Playback uses for its judge-line cluster (85% down),
+  // not tied to the live "now" line's position -- unless the "コントロール
+  //位置" option puts the whole dashboard at the top instead, mirroring the
+  // ratio (and which side gets masked) accordingly.
+  const controlsAtTop = options.controlsPosition === 'top';
+  const indicatorRatio = controlsAtTop ? (1-PLAYBACK_JUDGE_RATIO) : PLAYBACK_JUDGE_RATIO;
+  const indicatorY = canvasTop + kbFrameH*indicatorRatio;
+
+  const homeLine = document.getElementById('homeIndicatorLine');
+  homeLine.style.left = canvasLeft + 'px';
+  homeLine.style.width = geom.totalW + 'px';
+  homeLine.style.top = indicatorY + 'px';
+
+  // Mask the side of this line AWAY from where the dashboard's own controls
+  // sit, same idea as playback -- the lane should visually "end" here
+  // instead of poking through underneath the buttons.
+  const belowMask = document.getElementById('homeBelowMask');
+  belowMask.style.left = canvasLeft + 'px';
+  belowMask.style.width = geom.totalW + 'px';
+  if(controlsAtTop){
+    belowMask.style.top = canvasTop + 'px';
+    belowMask.style.height = Math.max(0, indicatorY - 2 - canvasTop) + 'px';
+  } else {
+    belowMask.style.top = (indicatorY + 2) + 'px';
+    belowMask.style.height = Math.max(0, (canvasTop + kbFrameH) - (indicatorY + 2)) + 'px';
+  }
+
+  // Controls (BT/FX buttons, VOL arrows) sit just below the line in "下"
+  // mode (row grows downward from indicatorY+13, into the footer area) but
+  // must sit just ABOVE it in "上" mode instead -- the requested order is
+  // controller, then line, then lane, so the whole cluster's bottom edge
+  // needs to land right at indicatorY-13, not its top edge.
+  const btUnit = kbFrameW/4, btSquareSize = btUnit*0.55*1.3;
+  const fxH = 32 * (2/3) * 0.8, BT_FX_GAP = 10;
+  const clusterHeight = btSquareSize + BT_FX_GAP + fxH;
+  const rowTopCss = controlsAtTop ? (indicatorY - 13 - clusterHeight) : (indicatorY + 13);
+
+  const indL = document.getElementById('volIndicatorL');
+  const indR = document.getElementById('volIndicatorR');
+  // Vertically align the arrows with the BT buttons' center (not the old
+  // judge-line-centered position, which no longer matches now that the
+  // L/R circle -- which used to anchor that height -- has been removed).
+  const btCenterY = rowTopCss + btSquareSize/2;
+  // Both indicators now share the SAME full-width coordinate frame (the
+  // whole canvas, 0..totalW) so each arrow can be placed at its exact
+  // computed lane-x (geom.volOuter*/volInner*) regardless of which side's
+  // strip it visually sits nearest to -- see computeFullGeometry.
+  [indL, indR].forEach(ind=>{
+    ind.style.left = canvasLeft + 'px';
+    ind.style.width = geom.totalW + 'px';
+    ind.style.top = btCenterY + 'px';
+    ind.style.transform = 'translateY(-50%)';
+  });
+  document.getElementById('volArrowL_neg').style.left = geom.volOuterL + 'px';
+  document.getElementById('volArrowL_pos').style.left = geom.volInnerL + 'px';
+  document.getElementById('volArrowR_neg').style.left = geom.volInnerR + 'px';
+  document.getElementById('volArrowR_pos').style.left = geom.volOuterR + 'px';
+
+  positionBtnRow(
+    document.getElementById('btnRowHome'), 'btnSquareHome', 'btnFxHome',
+    canvasLeft + geom.kbOffset, kbFrameW, rowTopCss
+  );
+
+  homeGeom = { kbFrameW, kbFrameH, ...geom };
+}
+window.addEventListener('resize', resizeCanvas);
+let homeGeom = null;
+resizeCanvas();
+
+// per-lane state: pressed bool, pressStart time(ms, performance.now based), finished notes list
+const laneState = {};
+LANES.forEach(l=> laneState[l] = { pressed:false, startT:0 });
+let notes = []; // {lane, start, end(null=ongoing)}
+let volSamples = { L:[], R:[] }; // {t, v(0..1, only pushed while "active")}
+
+// VOL is only drawn while input is actively being detected; when it goes
+// idle, the next active session starts fresh from the center (0.5) rather
+// than continuing from wherever the physical/raw value happens to be
+// (SDVX knobs are infinite-rotation, so an absolute position is meaningless).
+const volSessionActive = { L:false, R:false };
+let volDir = { L:0, R:0 }; // -1, 0, or 1 -- current live rotation direction per side
+let volLastRaw = { L:null, R:null };
+let volLastMoveT = { L:0, R:0 };
+let volSessionId = { L:0, R:0 };
+const VOL_MOVE_EPS = 0.0015;
+const VOL_IDLE_MS = 300; // widened from 150ms: some real controllers only
+// report a new axis value every so often while turning, and 150ms was
+// tight enough that a normal turn could look "idle" between updates and
+// get its session reset back to center mid-turn.
+
+// ---- Recording ----
+let isRecording = false;
+let recordStartT = null;
+let recordedNotes = [];
+let recordedVol = { L:[], R:[] };
+let recLaneOpenIdx = {};
+let lastRecording = null; // {duration, notes, vol}
+let recTimerInterval = null;
+
+function formatTime(sec){
+  const m = Math.floor(sec/60);
+  const s = Math.floor(sec%60);
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+const RECORDING_MAX_MS = 3 * 60 * 1000; // 3-minute recording cap
+
+const recBtn = document.getElementById('recBtn');
+const recStatus = document.getElementById('recStatus');
+
+function startRecording(){
+  isRecording = true;
+  recordStartT = performance.now();
+  recordedNotes = [];
+  recordedVol = { L:[], R:[] };
+  recLaneOpenIdx = {};
+  recBtn.textContent = '■ 停止';
+  recBtn.style.borderColor = '#ff5a5a';
+  recBtn.style.color = '#ff5a5a';
+  recTimerInterval = setInterval(()=>{
+    const elapsed = performance.now() - recordStartT;
+    if(elapsed >= RECORDING_MAX_MS){
+      stopRecording();
+      recStatus.textContent = `録画上限（3分）に達したため自動停止しました（${formatTime(RECORDING_MAX_MS/1000)}）「録画再生」タブで確認できます`;
+      return;
+    }
+    recStatus.textContent = `録画中 ${formatTime(elapsed/1000)} / 3:00`;
+  }, 200);
+}
+function stopRecording(){
+  isRecording = false;
+  clearInterval(recTimerInterval);
+  const duration = Math.min(performance.now() - recordStartT, RECORDING_MAX_MS);
+  lastRecording = { duration, notes: recordedNotes, vol: recordedVol };
+  recBtn.textContent = '● 録画';
+  recBtn.style.borderColor = '';
+  recBtn.style.color = '';
+  renderPlayback();
+}
+
+recBtn.addEventListener('click', ()=>{
+  if(!isRecording){
+    startRecording();
+  } else {
+    stopRecording();
+    recStatus.textContent = `録画完了（${formatTime(lastRecording.duration/1000)}）「録画再生」タブで確認できます`;
+  }
+});
+
+// Centralized note start/end so both the gamepad poll loop and the keyboard
+// event handlers share one source of truth (and one place to fix bugs in).
+function startNote(lane, t){
+  const st = laneState[lane];
+  if(st.pressed) return; // already open, ignore duplicate start
+  st.pressed = true;
+  st.startT = t;
+  notes.push({lane, start:t, end:null});
+  if(isRecording){
+    const relT = t - recordStartT;
+    recordedNotes.push({lane, start:relT, end:null});
+    recLaneOpenIdx[lane] = recordedNotes.length - 1;
+  }
+}
+function endNote(lane, t){
+  const st = laneState[lane];
+  if(!st.pressed) return;
+  st.pressed = false;
+  for(let i=notes.length-1;i>=0;i--){
+    if(notes[i].lane===lane && notes[i].end===null){ notes[i].end = t; break; }
+  }
+  if(isRecording && recLaneOpenIdx[lane]!==undefined && recLaneOpenIdx[lane]!==null){
+    recordedNotes[recLaneOpenIdx[lane]].end = t - recordStartT;
+    recLaneOpenIdx[lane] = null;
+  }
+}
+// Used by the gamepad poll loop, which only has a boolean "isDown" per frame.
+function updateLaneFromBool(lane, isDown, now){
+  const st = laneState[lane];
+  if(isDown && !st.pressed) startNote(lane, now);
+  else if(!isDown && st.pressed) endNote(lane, now);
+}
+
+// ---- Home screen options ----
+const VOL_COLOR_HEX = { blue:'#00c8ff', green:'#5cff33', red:'#ff2f7e', yellow:'#ffd23f' };
+function hexToRgba(hex, alpha){
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2),16);
+  const g = parseInt(h.substring(2,4),16);
+  const b = parseInt(h.substring(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+// Scales a hex color's RGB channels by `factor` (0-1 darkens, >1 lightens)
+// -- used for the FX long-note "grooved" skin's center-darkening gradient.
+function darkenHex(hex, factor){
+  const h = hex.replace('#','');
+  const r = Math.round(parseInt(h.substring(0,2),16)*factor);
+  const g = Math.round(parseInt(h.substring(2,4),16)*factor);
+  const b = Math.round(parseInt(h.substring(4,6),16)*factor);
+  return `rgb(${Math.min(255,r)},${Math.min(255,g)},${Math.min(255,b)})`;
+}
+
+
+const optLongThreshold = document.getElementById('optLongThreshold');
+const optColorL = document.getElementById('optColorL');
+const optColorR = document.getElementById('optColorR');
+
+optLongThreshold.value = options.longThresholdMs;
+optColorL.value = options.volColor.L;
+optColorR.value = options.volColor.R;
+
+optLongThreshold.addEventListener('change', ()=>{
+  const v = parseInt(optLongThreshold.value, 10);
+  options.longThresholdMs = (!isNaN(v) && v>0) ? v : defaultOptions.longThresholdMs;
+  optLongThreshold.value = options.longThresholdMs;
+  saveOptions();
+});
+optColorL.addEventListener('change', ()=>{ options.volColor.L = optColorL.value; saveOptions(); applyVolCircleColors(); });
+optColorR.addEventListener('change', ()=>{ options.volColor.R = optColorR.value; saveOptions(); applyVolCircleColors(); });
+
+const optVolEnabled = document.getElementById('optVolEnabled');
+optVolEnabled.checked = options.volEnabled;
+function applyVolEnabledVisibility(){
+  const show = options.volEnabled ? '' : 'none';
+  document.getElementById('volIndicatorL').style.display = show;
+  document.getElementById('volIndicatorR').style.display = show;
+  document.getElementById('optColorLRow').style.display = show;
+  document.getElementById('optColorRRow').style.display = show;
+}
+applyVolEnabledVisibility();
+optVolEnabled.addEventListener('change', ()=>{
+  options.volEnabled = optVolEnabled.checked;
+  saveOptions();
+  applyVolEnabledVisibility();
+});
+
+const optControlsPosition = document.getElementById('optControlsPosition');
+optControlsPosition.value = options.controlsPosition;
+optControlsPosition.addEventListener('change', ()=>{
+  options.controlsPosition = optControlsPosition.value;
+  saveOptions();
+  resizeCanvas();
+});
+
+// ---- VOL knob indicator (circle + direction arrows), shared styling logic
+// for both Home (live) and Playback (recorded) views. ----
+function applyVolCircleColors(){
+  const colorL = VOL_COLOR_HEX[options.volColor.L];
+  const colorR = VOL_COLOR_HEX[options.volColor.R];
+  ['volCircleL','pbVolCircleL','practiceVolCircleL'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.background = colorL;
+  });
+  ['volCircleR','pbVolCircleR','practiceVolCircleR'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.background = colorR;
+  });
+}
+applyVolCircleColors();
+
+function setArrowState(prefix, side, dir){
+  const negEl = document.getElementById(`${prefix}Arrow${side}_neg`);
+  const posEl = document.getElementById(`${prefix}Arrow${side}_pos`);
+  const colorHex = VOL_COLOR_HEX[options.volColor[side]];
+  const IDLE_STROKE = '1.8px rgba(255,255,255,0.9)';
+  if(negEl){
+    const active = dir<0;
+    negEl.classList.toggle('active', active);
+    negEl.style.color = active ? colorHex : 'transparent';
+    negEl.style.webkitTextStroke = active ? `1.8px ${colorHex}` : IDLE_STROKE;
+  }
+  if(posEl){
+    const active = dir>0;
+    posEl.classList.toggle('active', active);
+    posEl.style.color = active ? colorHex : 'transparent';
+    posEl.style.webkitTextStroke = active ? `1.8px ${colorHex}` : IDLE_STROKE;
+  }
+}
+function updateHomeVolIndicators(){
+  setArrowState('vol', 'L', volSessionActive.L ? volDir.L : 0);
+  setArrowState('vol', 'R', volSessionActive.R ? volDir.R : 0);
+}
+
+const optPlaybackKeySound = document.getElementById('optPlaybackKeySound');
+optPlaybackKeySound.checked = options.playbackKeySound;
+optPlaybackKeySound.addEventListener('change', ()=>{
+  options.playbackKeySound = optPlaybackKeySound.checked;
+  saveOptions();
+});
+
+const optPbControlsPosition = document.getElementById('optPbControlsPosition');
+optPbControlsPosition.value = options.pbControlsPosition;
+optPbControlsPosition.addEventListener('change', ()=>{
+  options.pbControlsPosition = optPbControlsPosition.value;
+  saveOptions();
+  if(lastRecording) renderPlayback();
+});
+
+// ---- Playback options panel ----
+
+// Scroll speed (rendering density) is shared with Home's slider -- keep
+// both displays in sync regardless of which one the user drags.
+const pbSpeedLevelSlider = document.getElementById('pbSpeedLevelSlider');
+const pbSpeedLevelVal = document.getElementById('pbSpeedLevelVal');
+function pxToSpeedLevel(px){ return 1 + (px-SPEED_PX_MIN)/(SPEED_PX_MAX-SPEED_PX_MIN)*99; }
+pbSpeedLevelSlider.value = Math.round(pxToSpeedLevel(speed));
+pbSpeedLevelVal.textContent = pbSpeedLevelSlider.value;
+pbSpeedLevelSlider.addEventListener('input', ()=>{
+  const level = parseInt(pbSpeedLevelSlider.value,10);
+  speed = speedLevelToPx(level);
+  syncAllSpeedSliders(level);
+});
+
+const pbSpeedSlider = document.getElementById('pbSpeedSlider');
+const pbSpeedVal = document.getElementById('pbSpeedVal');
+pbSpeedSlider.value = options.playbackSpeedMultiplier;
+pbSpeedVal.textContent = 'x' + options.playbackSpeedMultiplier.toFixed(1);
+pbSpeedSlider.addEventListener('input', ()=>{
+  options.playbackSpeedMultiplier = parseFloat(pbSpeedSlider.value);
+  pbSpeedVal.textContent = 'x' + options.playbackSpeedMultiplier.toFixed(1);
+  saveOptions();
+});
+
+const practiceSpeedLevelSlider = document.getElementById('practiceSpeedLevelSlider');
+const practiceSpeedLevelVal = document.getElementById('practiceSpeedLevelVal');
+practiceSpeedLevelSlider.value = Math.round(pxToSpeedLevel(speed));
+practiceSpeedLevelVal.textContent = practiceSpeedLevelSlider.value;
+practiceSpeedLevelSlider.addEventListener('input', ()=>{
+  const level = parseInt(practiceSpeedLevelSlider.value,10);
+  speed = speedLevelToPx(level);
+  syncAllSpeedSliders(level);
+});
+
+// Judge line position: purely a visual shift. layoutPracticeArea() adds
+// this (as a negative offset, since a smaller y is higher up the canvas)
+// directly into the same judgeOffsetPx that yFromMs() times notes against,
+// so notes still arrive exactly on time wherever the line currently sits --
+// only WHERE that "due now" row is drawn changes, never WHEN.
+const practiceJudgeLineSlider = document.getElementById('practiceJudgeLineSlider');
+const practiceJudgeLineVal = document.getElementById('practiceJudgeLineVal');
+practiceJudgeLineSlider.value = options.practiceJudgeLineOffset;
+practiceJudgeLineVal.textContent = options.practiceJudgeLineOffset;
+practiceJudgeLineSlider.addEventListener('input', ()=>{
+  options.practiceJudgeLineOffset = parseInt(practiceJudgeLineSlider.value, 10);
+  practiceJudgeLineVal.textContent = options.practiceJudgeLineOffset;
+  saveOptions();
+});
+
+let lastPollT = performance.now();
+
+function poll(){
+  const now = performance.now();
+  const dt = Math.min(0.1, (now - lastPollT)/1000);
+  lastPollT = now;
+
+  // --- Keyboard VOL simulation: only "active" (and only visible) while a
+  // key is actually held. Each new press session starts fresh from center. ---
+  const rate = 1.4; // 0..1 range per second
+  ['L','R'].forEach(side=>{
+    const upCode = mapping.volKeys[side+'up'];
+    const downCode = mapping.volKeys[side+'down'];
+    const pressed = (upCode && keysDown[upCode]) || (downCode && keysDown[downCode]);
+    if(pressed){
+      if(!volSessionActive[side]){
+        virtualVol[side] = 0.5; // fresh session: always starts centered
+        volSessionActive[side] = true;
+        volSessionId[side]++;
+      }
+      if(upCode && keysDown[upCode]) virtualVol[side] += rate*dt;
+      if(downCode && keysDown[downCode]) virtualVol[side] -= rate*dt;
+      volSamples[side].push({t:now, v:virtualVol[side], session:volSessionId[side]});
+      if(isRecording) recordedVol[side].push({t: now-recordStartT, v:virtualVol[side], session:volSessionId[side]});
+      volDir[side] = (upCode && keysDown[upCode]) ? 1 : ((downCode && keysDown[downCode]) ? -1 : 0);
+    } else if(!(mapping.vol[side].axis!==null && mapping.vol[side].axis!==undefined)){
+      // no gamepad axis mapped for this side either -> safe to close session
+      volSessionActive[side] = false;
+      volDir[side] = 0;
+    }
+  });
+
+  // --- Gamepad: polled every frame, independent of keyboard state. ---
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const pad = (gpIndex!==null) ? pads[gpIndex] : null;
+
+  if(pad){
+    // --- listening for BT/FX assignment ---
+    if(listeningLane){
+      for(let i=0;i<pad.buttons.length;i++){
+        const wasDown = prevButtons[i];
+        const isDown = pad.buttons[i].pressed;
+        if(isDown && !wasDown){
+          mapping.buttons[listeningLane] = i;
+          saveMapping();
+          updateBtFxLabels();
+          document.querySelectorAll('#btFxRows button').forEach(b=>{
+            b.classList.remove('listening');
+            b.textContent='検出';
+          });
+          listeningLane = null;
+          break;
+        }
+      }
+    }
+    // --- vol calibration sampling ---
+    if(volCalibrating){
+      pad.axes.forEach((v, idx)=>{
+        if(!volCalibSamples[idx]) volCalibSamples[idx] = {min:v, max:v};
+        else{
+          if(v < volCalibSamples[idx].min) volCalibSamples[idx].min = v;
+          if(v > volCalibSamples[idx].max) volCalibSamples[idx].max = v;
+        }
+      });
+    }
+
+    // --- update lane press state -> notes ---
+    LANES.forEach(lane=>{
+      const btnIdx = mapping.buttons[lane];
+      const isDown = (btnIdx!==null && pad.buttons[btnIdx]) ? pad.buttons[btnIdx].pressed : false;
+      updateLaneFromBool(lane, isDown, now);
+    });
+
+    // --- vol sampling: only while the knob is actually moving; each new
+    // movement session starts fresh from center (see comment above). ---
+    ['L','R'].forEach(side=>{
+      const cfg = mapping.vol[side];
+      if(cfg.axis===null || cfg.axis===undefined || pad.axes[cfg.axis]===undefined) return;
+      let raw = pad.axes[cfg.axis];
+      let range = (cfg.max - cfg.min) || 1;
+      let norm = (raw - cfg.min)/range; // 0..1
+      norm = Math.max(0, Math.min(1, norm));
+      if(cfg.invert) norm = 1 - norm;
+
+      const prevRaw = volLastRaw[side];
+      volLastRaw[side] = norm;
+      if(prevRaw===null) return; // first sample this session, nothing to diff yet
+
+      let delta = norm - prevRaw;
+      // Some controllers report the knob's raw axis as a value that itself
+      // wraps around (e.g. hits its max and snaps back to its min) as part
+      // of representing infinite rotation. That shows up here as a single
+      // frame where norm jumps by nearly the whole 0..1 range -- treat any
+      // single-frame jump bigger than half the range as that kind of wrap
+      // artifact and fold it back to the short way around, rather than
+      // applying the raw (huge, spurious) delta as if it were real motion.
+      if(delta > 0.5) delta -= 1;
+      else if(delta < -0.5) delta += 1;
+      if(Math.abs(delta) > VOL_MOVE_EPS){
+        if(!volSessionActive[side]){
+          virtualVol[side] = 0.5; // fresh session: always starts centered
+          volSessionActive[side] = true;
+          volSessionId[side]++;
+        }
+        // Left unclamped intentionally: drawVolNoteBars only looks at the
+        // SIGN of each step (via Math.sign) to pick which lane a bar goes
+        // in, so it doesn't care whether this value stays within 0..1 --
+        // no need to clamp it back just because we're in bar mode again.
+        virtualVol[side] += delta;
+        volSamples[side].push({t:now, v:virtualVol[side], session:volSessionId[side]});
+        if(isRecording) recordedVol[side].push({t: now-recordStartT, v:virtualVol[side], session:volSessionId[side]});
+        volLastMoveT[side] = now;
+        volDir[side] = Math.sign(delta);
+      } else if(volSessionActive[side] && (now - volLastMoveT[side] > VOL_IDLE_MS)){
+        volSessionActive[side] = false;
+        volDir[side] = 0;
+      }
+    });
+
+    prevButtons = pad.buttons.map(b=>b.pressed);
+  }
+
+  // note/volSamples pruning happens inside drawViz, sized dynamically to
+  // the current canvas height and scroll speed (no fixed "表示秒数").
+
+  updateHomeVolIndicators();
+  drawViz(now);
+  requestAnimationFrame(poll);
+}
+requestAnimationFrame(poll);
+
+/* ---------------- Drawing ---------------- */
+const COLORS = {
+  fx: '#c97b2e',
+  grid:'#c9cdd8', judge:'#ffffff',
+  laneBg: '#05070d',
+  bg: '#454b57'
+};
+
+// Shared geometry: the keyboard (BT/FX) lanes, 4 equal units wide, offset
+// by offsetX so a caller can reserve space for VOL note strips beside it.
+function computeLayout(W, offsetX=0){
+  const unit = W/4;
+  const BT_ORDER = ['btA','btB','btC','btD'];
+  function btX(lane){ return offsetX + BT_ORDER.indexOf(lane)*unit; }
+  return { leftW: W, unit, BT_ORDER, btX, offsetX };
+}
+
+// Shared full-canvas geometry (keyboard + a narrow VOL "note" strip on each
+// side, itself split into 2 columns -- one per rotation direction, per the
+// reference mockup). Works in whatever unit the caller passes (CSS px for
+// sizing elements, device px for drawing) as long as it's used consistently.
+function computeFullGeometry(kbW){
+  const volStripW = kbW * 0.22 * 1.5 * 1.5; // VOL lane width x1.5, then x1.5 again
+  const stripGap = kbW * 0.22;
+  const kbOffset = volStripW + stripGap;
+  const totalW = kbW + 2*kbOffset;
+  const volColW = volStripW/2; // used only for bar-thickness sizing now
+  const unit = kbW/4; // BT lane pitch -- also the target pitch for the VOL turn-lanes
+  // Center-x for all 8 conceptual lanes "⇦⇨ABCD⇦⇨", spaced at this same
+  // BT pitch so the VOL turn notes/arrows visually line up with the BT
+  // lane rhythm instead of being tucked away inside their own narrow strip.
+  // OUTER lanes (L⇦, R⇨ -- nearest the screen edge) stay near the strip's
+  // own quarter-point; INNER lanes (L⇨, R⇦ -- nearest the keyboard) are
+  // pulled in to sit exactly one lane-pitch outside the keyboard's first/
+  // last BT lane, continuing the same rhythm as A-B-C-D.
+  const volOuterL = volStripW * 0.25;              // L⇦
+  const volInnerL = kbOffset - unit/2 - unit*0.08; // L⇨ (nudged slightly left)
+  const volInnerR = (totalW - kbOffset) + unit/2 + unit*0.08; // R⇦ (nudged slightly right)
+  const volOuterR = totalW - volStripW*0.25;       // R⇨
+  return { volStripW, stripGap, kbOffset, totalW, volColW, unit, volOuterL, volInnerL, volInnerR, volOuterR };
+}
+
+// Draws one side's VOL history as flowing bars. A session is further split
+// into runs of consistent direction -- so rapid left/right reversals within
+// one continuous motion (no idle gap) correctly alternate between the two
+// columns instead of being flattened into a single overall-direction bar.
+// Only the SIGN of each step matters here (not the unwrapped magnitude), so
+// this works fine whether or not virtualVol itself is clamped.
+function drawVolNoteBars(ctxObj, samples, negCenterX, posCenterX, colW, colorHex, yFn, minH, visibleUntil){
+  const barW = colW * 0.62;
+  // Draws a DDR-style hold-note: a rounded solid-colour bar with a dark
+  // outline, plus a triangular arrowhead badge near its leading edge (the
+  // end closest to the judge line -- i.e. the START of this turn segment,
+  // since notes fall top->bottom as time approaches "now") pointing
+  // sideways in the turn direction.
+  function drawArrowBar(x, top, bottom, dir){
+    const h = Math.max(bottom-top, minH);
+    const w = barW;
+    const r = Math.min(w*0.28, h/2, 6);
+
+    const roundedRect = new Path2D();
+    roundedRect.moveTo(x+r, top);
+    roundedRect.arcTo(x+w, top, x+w, top+h, r);
+    roundedRect.arcTo(x+w, top+h, x, top+h, r);
+    roundedRect.arcTo(x, top+h, x, top, r);
+    roundedRect.arcTo(x, top, x+w, top, r);
+    roundedRect.closePath();
+
+    ctxObj.fillStyle = colorHex;
+    ctxObj.fill(roundedRect);
+
+    ctxObj.lineWidth = Math.max(1.5, w*0.09);
+    ctxObj.strokeStyle = 'rgba(10,14,24,0.85)';
+    ctxObj.stroke(roundedRect);
+
+    // Arrowhead badge near the leading (bottom) edge, pointing sideways
+    // to show which way the knob turns.
+    const triSize = Math.min(w*0.85, h*0.7, 15);
+    const cx = x+w/2, cy = top+h - Math.min(h*0.3, triSize*0.75+3);
+    ctxObj.beginPath();
+    if(dir < 0){
+      ctxObj.moveTo(cx+triSize*0.4, cy-triSize*0.5);
+      ctxObj.lineTo(cx-triSize*0.5, cy);
+      ctxObj.lineTo(cx+triSize*0.4, cy+triSize*0.5);
+    } else {
+      ctxObj.moveTo(cx-triSize*0.4, cy-triSize*0.5);
+      ctxObj.lineTo(cx+triSize*0.5, cy);
+      ctxObj.lineTo(cx-triSize*0.4, cy+triSize*0.5);
+    }
+    ctxObj.closePath();
+    ctxObj.fillStyle = 'rgba(255,255,255,0.92)';
+    ctxObj.fill();
+    ctxObj.lineWidth = Math.max(1, triSize*0.12);
+    ctxObj.strokeStyle = 'rgba(10,14,24,0.85)';
+    ctxObj.stroke();
+  }
+  function emitBar(aIdx, bIdx, dir, samplesRef){
+    if(visibleUntil!==undefined && samplesRef[aIdx].t > visibleUntil) return;
+    const centerX = dir < 0 ? negCenterX : posCenterX;
+    const x = centerX - barW/2;
+    const yA = yFn(samplesRef[aIdx].t), yB = yFn(samplesRef[bIdx].t);
+    const top = Math.min(yA,yB), bottom = Math.max(yA,yB);
+    drawArrowBar(x, top, bottom, dir);
+  }
+
+  let i = 0;
+  while(i < samples.length){
+    let j = i;
+    while(j+1 < samples.length && samples[j+1].session === samples[i].session) j++;
+
+    let segStart = i, curDir = null;
+    for(let k=i; k<j; k++){
+      const d = Math.sign(samples[k+1].v - samples[k].v);
+      if(d===0) continue; // flat step -- keep extending the current run
+      if(curDir===null) curDir = d;
+      else if(d !== curDir){
+        emitBar(segStart, k, curDir, samples);
+        segStart = k;
+        curDir = d;
+      }
+    }
+    emitBar(segStart, j, curDir || 1, samples);
+    i = j+1;
+  }
+}
+
+function drawViz(now){
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = COLORS.bg;
+  ctx.fillRect(0,0,W,H);
+  const scale = devicePixelRatio;
+  const geom = computeFullGeometry((homeGeom ? homeGeom.kbFrameW : W/1.62) * scale);
+  const kbOffsetPx = geom.kbOffset;
+  const layout = computeLayout(W - 2*geom.kbOffset, kbOffsetPx);
+  const volColWpx = geom.volColW;
+  // Where fresh input appears (nowY) and where the trail finally disappears
+  // (farY) both flip along with "コントローラー位置": normally nowY sits near
+  // the top edge and the trail runs all the way down to the bottom edge
+  // (farY=H). With the controls moved to the top, input should appear right
+  // where the controls are instead (so "現れる線" sits just below the
+  // dashboard) and age moving further down, disappearing at a line mirrored
+  // the same small margin from the BOTTOM edge that nowY normally keeps
+  // from the top -- same overall layout as before, just flipped.
+  const controlsAtTop = options.controlsPosition === 'top';
+  const nowY = controlsAtTop ? H*(1-PLAYBACK_JUDGE_RATIO) : H*NOW_Y_RATIO;
+  const farY = controlsAtTop ? H*(1-NOW_Y_RATIO) : H;
+  const volColorL = VOL_COLOR_HEX[options.volColor.L];
+  const volColorR = VOL_COLOR_HEX[options.volColor.R];
+
+  // When long-note support is on, hold the whole display back by the long
+  // threshold amount. By the time anything reaches the "now" line, its fate
+  // (tap vs. hold) is already decided in real time, so nothing ever changes
+  // shape after it becomes visible.
+  const delayMs = options.longThresholdMs;
+  const displayNow = now - delayMs;
+
+  // Prune anything that's already scrolled past the far edge, sized to
+  // the current canvas height and speed (replaces the old fixed "表示秒数").
+  // IMPORTANT: a note that's still being held (end===null) must never be
+  // pruned by its start time alone -- while held, its live edge stays
+  // anchored near the "now" line regardless of how long ago it started.
+  const maxAgeMs = ((farY - nowY)/(speed*scale))*1000 + 500;
+  const cutoff = displayNow - maxAgeMs;
+  notes = notes.filter(n => n.end===null || n.end > cutoff);
+  volSamples.L = volSamples.L.filter(s => s.t > cutoff);
+  volSamples.R = volSamples.R.filter(s => s.t > cutoff);
+
+  // lane background (light gray), distinct from the outer margin
+  ctx.fillStyle = COLORS.laneBg;
+  ctx.fillRect(layout.offsetX, 0, layout.leftW, H);
+
+  // grid lines
+  ctx.strokeStyle = COLORS.grid;
+  ctx.lineWidth = 1*scale;
+  for(let i=0;i<=4;i++){
+    const x = layout.offsetX + layout.unit*i;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+  }
+
+  // "now" line (where fresh input appears)
+  ctx.strokeStyle = COLORS.judge;
+  ctx.lineWidth = 2*scale;
+  ctx.beginPath(); ctx.moveTo(0, nowY); ctx.lineTo(W, nowY); ctx.stroke();
+  // The far boundary where the trail disappears only needs its own drawn
+  // line when it isn't already sitting right at the canvas edge (bottom
+  // mode's farY===H is the edge itself, nothing to draw there).
+  if(controlsAtTop){
+    ctx.beginPath(); ctx.moveTo(0, farY); ctx.lineTo(W, farY); ctx.stroke();
+  }
+
+  function yFromTime(t){
+    // t=displayNow -> nowY. Older t -> further from nowY, toward farY.
+    const dtSec = (displayNow - t)/1000;
+    return nowY + dtSec * speed * scale;
+  }
+
+  // Classifies a note as 'long' or 'tap' -- same logic used both to pick
+  // how it's drawn AND to decide layering order (taps always sit above
+  // longs; see the draw passes below).
+  function classifyNote(n){
+    if(n.end===null) return 'long'; // guaranteed long once visible (see below)
+    if((n.end-n.start) >= options.longThresholdMs) return 'long';
+    return 'tap';
+  }
+
+  const TAP_H = 10 * scale;
+  function drawLongNote(n, x, w, colorHex){
+    ctx.fillStyle = colorHex;
+    if(n.end===null){
+      // Only ever called with n.start <= displayNow (see call sites below),
+      // which -- because displayNow = now - longThresholdMs -- means this
+      // press has already been held for at least the threshold in real
+      // time. So an ongoing note that's visible at all is GUARANTEED to be
+      // a hold; no ambiguity, no shape change will ever be needed later.
+      const top = nowY;                 // current "now" position (near top)
+      const bottom = yFromTime(n.start); // older press-start position (further down)
+      const h = Math.max(TAP_H, bottom - top);
+      if(top > H || bottom < 0) return;
+      ctx.fillRect(x, top, w, h);
+    } else {
+      const yEnd = yFromTime(n.end);
+      const yStart = yFromTime(n.start);
+      const top = Math.min(yEnd,yStart), bottom = Math.max(yEnd,yStart);
+      const h = Math.max(TAP_H, bottom-top);
+      if(top > H || bottom < 0) return;
+      ctx.fillRect(x, top, w, h);
+    }
+  }
+  function drawTapNote(n, x, w, colorHex){
+    ctx.fillStyle = colorHex;
+    const y = yFromTime(n.start);
+    if(y > H || y + TAP_H < 0) return;
+    ctx.fillRect(x, y, w, TAP_H);
+  }
+
+  const fxGeom = { fxL:[layout.btX('btA'), layout.unit*2], fxR:[layout.btX('btC'), layout.unit*2] };
+  const BT_WIDTH_RATIO = 0.8;
+  function btGeom(lane){
+    const laneX = layout.btX(lane);
+    const w = layout.unit * BT_WIDTH_RATIO;
+    return [laneX + (layout.unit - w)/2, w];
+  }
+  // FX long notes only: a thin gap right down the middle (where the A/B or
+  // C/D lane divider sits) lets that divider line show through instead of
+  // being painted over, and a slight center-ward darkening gradient on each
+  // half gives it a "grooved" look instead of one flat block of colour --
+  // matching the reference skin. FX taps and all BT notes are untouched.
+  // The "let the divider show through" part is handled separately (see
+  // the grid-line redraw pass after all notes below) rather than by
+  // punching an explicit gap in this rect -- a fixed gap only ever
+  // accounted for THIS note's own center line, so e.g. the B/C line
+  // between simultaneous FX-L and FX-R longs had no gap defined for it at
+  // all and just vanished under both notes' edges meeting flush there.
+  // Redrawing every divider on top after the fact covers all such cases
+  // uniformly with one simple rule.
+  function drawFxLongNote(n, x, w, colorHex){
+    let top, bottom;
+    if(n.end===null){
+      top = nowY;
+      bottom = yFromTime(n.start);
+    } else {
+      const yEnd = yFromTime(n.end), yStart = yFromTime(n.start);
+      top = Math.min(yEnd,yStart); bottom = Math.max(yEnd,yStart);
+    }
+    const h = Math.max(TAP_H, bottom-top);
+    if(top > H || bottom < 0) return;
+    const dark = darkenHex(colorHex, 0.62);
+    const grad = ctx.createLinearGradient(x, 0, x+w, 0);
+    grad.addColorStop(0, colorHex);
+    grad.addColorStop(0.5, dark);
+    grad.addColorStop(1, colorHex);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, top, w, h);
+  }
+  // BT long notes: edges bright (full colour), center shaded darker --
+  // same darkening direction as FX's groove, just without the center gap
+  // since a BT note only ever occupies its own single lane (no divider to
+  // expose).
+  function drawBtLongNote(n, x, w, colorHex){
+    let top, bottom;
+    if(n.end===null){
+      top = nowY;
+      bottom = yFromTime(n.start);
+    } else {
+      const yEnd = yFromTime(n.end), yStart = yFromTime(n.start);
+      top = Math.min(yEnd,yStart); bottom = Math.max(yEnd,yStart);
+    }
+    const h = Math.max(TAP_H, bottom-top);
+    if(top > H || bottom < 0) return;
+    const dark = darkenHex(colorHex, 0.72);
+    const grad = ctx.createLinearGradient(x, 0, x+w, 0);
+    grad.addColorStop(0, colorHex);
+    grad.addColorStop(0.5, dark);
+    grad.addColorStop(1, colorHex);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, top, w, h);
+  }
+
+  // Layering (bottom to top): FX-long, BT-long, FX-tap, BT-tap -- a tap
+  // always sits above a long, and within the same kind, BT sits above FX.
+  ['fxL','fxR'].forEach(lane=>{
+    const [x,w] = fxGeom[lane];
+    notes.filter(n=>n.lane===lane && n.start<=displayNow && classifyNote(n)==='long')
+      .forEach(n=> drawFxLongNote(n, x, w, LANE_COLOR[lane]));
+  });
+  layout.BT_ORDER.forEach(lane=>{
+    const [x,w] = btGeom(lane);
+    notes.filter(n=>n.lane===lane && n.start<=displayNow && classifyNote(n)==='long')
+      .forEach(n=> drawBtLongNote(n, x, w, LANE_COLOR[lane]));
+  });
+  ['fxL','fxR'].forEach(lane=>{
+    const [x,w] = fxGeom[lane];
+    notes.filter(n=>n.lane===lane && n.start<=displayNow && classifyNote(n)==='tap')
+      .forEach(n=> drawTapNote(n, x, w, LANE_COLOR[lane]));
+  });
+  layout.BT_ORDER.forEach(lane=>{
+    const [x,w] = btGeom(lane);
+    notes.filter(n=>n.lane===lane && n.start<=displayNow && classifyNote(n)==='tap')
+      .forEach(n=> drawTapNote(n, x, w, LANE_COLOR[lane]));
+  });
+
+  // Redraw the lane dividers on top of every note just painted, so any
+  // divider a note happens to cover (which for FX long notes, spanning two
+  // BT lanes edge-to-edge, is guaranteed to be the case) shows through
+  // consistently -- including the B/C line between simultaneous FX-L and
+  // FX-R longs, which a note-local "gap" trick could never account for on
+  // its own since that line sits between two separate notes, not inside
+  // either one.
+  ctx.strokeStyle = COLORS.grid;
+  ctx.lineWidth = 1*scale;
+  for(let i=0;i<=4;i++){
+    const x = layout.offsetX + layout.unit*i;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+  }
+
+  // VOL note strips: each turning session becomes one flowing bar (like a
+  // BT/FX long note), landing on the same 8-lane ⇦⇨ABCD⇦⇨ pitch as the
+  // arrows below (see computeFullGeometry's volOuter*/volInner* fields).
+  // Skipped entirely when the "つまみ" option is off -- the reserved strip
+  // space stays (so the keyboard doesn't jump around), it's just left blank.
+  if(options.volEnabled){
+    drawVolNoteBars(ctx, volSamples.L, geom.volOuterL, geom.volInnerL, volColWpx, volColorL, yFromTime, TAP_H, displayNow);
+    drawVolNoteBars(ctx, volSamples.R, geom.volInnerR, geom.volOuterR, volColWpx, volColorR, yFromTime, TAP_H, displayNow);
+  }
+
+  // Mask everything above the "now" line so nothing is visible before it
+  // actually reaches the line -- otherwise notes still forming above the
+  // line (e.g. during the long-note render delay) would be seen changing
+  // shape ahead of time. Use the LANE background color so it blends
+  // seamlessly with the lane below the line.
+  ctx.fillStyle = COLORS.laneBg;
+  ctx.fillRect(layout.offsetX, 0, layout.leftW, nowY);
+  ctx.fillStyle = COLORS.bg;
+  ctx.fillRect(0, 0, geom.volStripW, nowY);
+  ctx.fillRect(W-geom.volStripW, 0, geom.volStripW, nowY);
+  // In "上" mode farY sits above the true canvas bottom edge (H), so the
+  // sliver of lane/grid between the disappear line and the actual edge
+  // needs masking too -- otherwise a bit of leftover lane keeps showing
+  // past where the trail is supposed to visually end.
+  if(controlsAtTop && farY < H){
+    ctx.fillStyle = COLORS.bg;
+    ctx.fillRect(0, farY, W, H-farY);
+  }
+
+  ctx.strokeStyle = COLORS.judge;
+  ctx.lineWidth = 2*scale;
+  ctx.beginPath(); ctx.moveTo(0, nowY); ctx.lineTo(W, nowY); ctx.stroke();
+
+  // BT/FX button lights (below the lane)
+  layout.BT_ORDER.forEach(lane=>{
+    const el = document.getElementById(`btnSquareHome_${lane}`);
+    if(el) el.classList.toggle('active', laneState[lane].pressed);
+  });
+  ['fxL','fxR'].forEach(lane=>{
+    const el = document.getElementById(`btnFxHome_${lane}`);
+    if(el) el.classList.toggle('active', laneState[lane].pressed);
+  });
+
+  // hide hint once either input source is mapped & ready
+  const hint = document.getElementById('cvHint');
+  const readyKeyboard = LANES.some(l=>mapping.keys[l]);
+  const readyGamepad = (gpIndex!==null) && LANES.some(l=>mapping.buttons[l]!==null && mapping.buttons[l]!==undefined);
+  hint.textContent = 'コントローラーまたはキーボードで、まず「マッピング」からレーンを割り当ててください';
+  hint.style.display = (readyKeyboard || readyGamepad) ? 'none' : 'block';
+}
+
+// ---- Playback: renders the whole recorded session onto one tall,
+// scrollable canvas. Top = recording start, bottom = recording end --
+// scrolling down moves forward in time. ----
+function renderPlayback(){
+  const canvas = document.getElementById('playbackCanvas');
+  const pctx = canvas.getContext('2d');
+  const info = document.getElementById('playbackInfo');
+  const playBtn = document.getElementById('playbackPlayBtn');
+
+  const overlayIds = ['pbBelowMask','pbJudgeLine','pbVolIndicatorL','pbVolIndicatorR','btnRowPb'];
+  if(!lastRecording){
+    info.textContent = '録画がありません';
+    canvas.width = 0; canvas.height = 0;
+    canvas.style.width = '0px'; canvas.style.height = '0px';
+    stopPlaybackScroll();
+    playBtn.disabled = true;
+    document.getElementById('pbSeekBar').disabled = true;
+    overlayIds.forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.style.display = 'none';
+    });
+    return;
+  }
+  overlayIds.forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = '';
+  });
+  playBtn.disabled = false;
+  document.getElementById('pbSeekBar').disabled = false;
+
+  const scale = devicePixelRatio;   // used for horizontal (X) sizing only
+  const yScale = 1;                 // vertical (Y) axis is intentionally NOT
+                                     // DPI-scaled -- see note below
+  // Compute the keyboard width the SAME way Home does (from available
+  // height * CANVAS_ASPECT), instead of reading Home's own canvasFrame
+  // element -- that element reports 0 width whenever the Home tab isn't
+  // the active view (hidden elements have no layout box), which was
+  // silently breaking Playback's lane size to not match Home's.
+  const kbFrameH_forWidth = document.getElementById('playbackViewport').clientHeight || 600;
+  let kbFrameW = kbFrameH_forWidth * CANVAS_ASPECT;
+  // Same reasoning as Home's resizeCanvas: the options panel is always
+  // visible and anchored to the right edge, independently of the canvas's
+  // own centering, so a canvas sized purely from viewport height can grow
+  // wide enough to overlap it in a narrow window. Shrink to fit the space
+  // left of the panel if needed.
+  {
+    const availW = (document.getElementById('playbackViewport').clientWidth) - OPTIONS_PANEL_RESERVED_W - 20;
+    const totalWAtThisWidth = computeFullGeometry(kbFrameW).totalW;
+    if(totalWAtThisWidth > availW && availW > 0){
+      kbFrameW = availW / (totalWAtThisWidth / kbFrameW);
+    }
+  }
+  const durationSec = lastRecording.duration/1000;
+
+  // The judge line sits partway down the VIEWPORT (not the canvas), and
+  // auto-scroll can only bring scrollTop down to 0 -- it can never go
+  // negative. So the canvas needs enough padding above its "most recent"
+  // end and below its "oldest" end for those extremes to actually be able
+  // to reach the judge line's position before scrolling bottoms out. Too
+  // little padding here was the real bug behind "playback never reaches
+  // the end": the last stretch of the recording was mathematically stuck
+  // between the canvas edge and the judge line, unable to ever scroll far
+  // enough to cross it.
+  const viewportElForPad = document.getElementById('playbackViewport');
+  const viewportHForPad = viewportElForPad.clientHeight;
+  const pbControlsAtTop = options.pbControlsPosition === 'top';
+  const judgeOffsetPxForPad = viewportHForPad * (pbControlsAtTop ? (1-PLAYBACK_JUDGE_RATIO) : PLAYBACK_JUDGE_RATIO);
+  const topPad = judgeOffsetPxForPad + 30;
+  const bottomPad = (viewportHForPad - judgeOffsetPxForPad) + 30;
+
+  // Cap the canvas at a safe pixel height -- browsers/GPUs have a maximum
+  // element/texture size (commonly well under 32,767px, and sometimes much
+  // lower on mobile GPUs), and exceeding it silently truncates the canvas.
+  // That was the bug behind "playback doesn't scroll through to the end":
+  // long recordings produced a canvas taller than the limit, so the tail of
+  // the recording simply wasn't there to scroll to. Two mitigations:
+  // (1) the vertical axis is rendered at a flat 1x scale regardless of
+  // devicePixelRatio (it's just flat color bars -- retina sharpness doesn't
+  // matter here the way it does horizontally), which alone removes the
+  // DPI multiplier's contribution to the height; (2) if it's still too
+  // tall, the effective px/sec used to lay out THIS canvas is compressed
+  // just enough to fit -- the Home scroll-speed setting itself is untouched.
+  const MAX_CANVAS_H = 12000;
+  let renderSpeed = speed;
+  let cssHeight = Math.max(200, durationSec*renderSpeed + topPad + bottomPad);
+  if(cssHeight > MAX_CANVAS_H){
+    renderSpeed = Math.max(10, (MAX_CANVAS_H - topPad - bottomPad) / durationSec);
+    cssHeight = MAX_CANVAS_H;
+  }
+
+  // The keyboard lanes keep the same width as Home's canvas, but playback
+  // additionally has a narrow VOL "note" strip on each side (outside the
+  // keyboard, split into 2 direction columns each), where each turning
+  // session appears as a flowing bar -- like BT/FX notes, rather than a
+  // continuous laser line.
+  const geom = computeFullGeometry(kbFrameW);
+  const frameW = geom.totalW;
+
+  canvas.style.width = frameW+'px';
+  canvas.style.height = cssHeight+'px';
+  canvas.width = frameW*scale;
+  canvas.height = cssHeight*yScale;
+  const W = canvas.width, H = canvas.height;
+  pctx.clearRect(0,0,W,H);
+  pctx.fillStyle = COLORS.bg;
+  pctx.fillRect(0,0,W,H);
+
+  const layout = computeLayout(kbFrameW*scale, geom.kbOffset*scale);
+  const volStripWpx = geom.volStripW*scale;
+  const volColWpx = geom.volColW*scale;
+  const volOuterLpx = geom.volOuterL*scale;
+  const volInnerLpx = geom.volInnerL*scale;
+  const volInnerRpx = geom.volInnerR*scale;
+  const volOuterRpx = geom.volOuterR*scale;
+  const volColorL = VOL_COLOR_HEX[options.volColor.L];
+  const volColorR = VOL_COLOR_HEX[options.volColor.R];
+  // Match Home's convention: recent/"now" sits near the top, older content
+  // sinks toward the bottom. So across a whole recording, the START (the
+  // oldest moment) ends up at the BOTTOM, and the END (most recent) ends up
+  // at the TOP -- scrolling UP moves forward in time, same as Home.
+  function yFromRel(tRel){ return H - (bottomPad*yScale) - (tRel/1000)*renderSpeed*yScale; }
+
+  pctx.fillStyle = COLORS.laneBg;
+  pctx.fillRect(layout.offsetX, 0, layout.leftW, H);
+
+  pctx.strokeStyle = COLORS.grid;
+  pctx.lineWidth = 1*scale;
+  for(let i=0;i<=4;i++){
+    const x = layout.offsetX + layout.unit*i;
+    pctx.beginPath(); pctx.moveTo(x,0); pctx.lineTo(x,H); pctx.stroke();
+  }
+
+  // Measure lines: only present for a practice-run recording (a plain Home
+  // "録画" has no BPM/chart to derive bar boundaries from, so there's
+  // nothing to draw there -- lastRecording.measureTimesMs is simply absent
+  // in that case). Same look as Practice's live play so it reads as a
+  // continuation of the same view, not a different renderer.
+  if(lastRecording.measureTimesMs){
+    pctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    pctx.lineWidth = 2*scale;
+    lastRecording.measureTimesMs.forEach(t=>{
+      const y = yFromRel(t);
+      pctx.beginPath();
+      pctx.moveTo(layout.offsetX, y);
+      pctx.lineTo(layout.offsetX+layout.leftW, y);
+      pctx.stroke();
+    });
+  }
+
+  const TAP_H = 10*yScale;
+  function classifyRecNote(n){
+    const effectiveEnd = n.end===null ? lastRecording.duration : n.end;
+    return (effectiveEnd - n.start) >= options.longThresholdMs ? 'long' : 'tap';
+  }
+  function drawRecLongNote(n, x, w, colorHex){
+    pctx.fillStyle = colorHex;
+    const effectiveEnd = n.end===null ? lastRecording.duration : n.end;
+    const yEnd = yFromRel(effectiveEnd);
+    const yStart = yFromRel(n.start);
+    const top = Math.min(yEnd,yStart), bottom = Math.max(yEnd,yStart);
+    pctx.fillRect(x, top, w, Math.max(TAP_H, bottom-top));
+  }
+  function drawRecTapNote(n, x, w, colorHex){
+    pctx.fillStyle = colorHex;
+    pctx.fillRect(x, yFromRel(n.start), w, TAP_H);
+  }
+
+  const fxGeom = { fxL:[layout.btX('btA'), layout.unit*2], fxR:[layout.btX('btC'), layout.unit*2] };
+  function btGeom(lane){
+    const laneX = layout.btX(lane);
+    const w = layout.unit * 0.8;
+    return [laneX + (layout.unit - w)/2, w];
+  }
+  // Same FX long-note "grooved" skin as Home -- see the matching comment
+  // there for why (the divider-passthrough is handled by redrawing the
+  // grid lines on top after all notes, not by an explicit gap here).
+  function drawRecFxLongNote(n, x, w, colorHex){
+    const effectiveEnd = n.end===null ? lastRecording.duration : n.end;
+    const yEnd = yFromRel(effectiveEnd), yStart = yFromRel(n.start);
+    const top = Math.min(yEnd,yStart), bottom = Math.max(yEnd,yStart);
+    const h = Math.max(TAP_H, bottom-top);
+    const dark = darkenHex(colorHex, 0.62);
+    const grad = pctx.createLinearGradient(x, 0, x+w, 0);
+    grad.addColorStop(0, colorHex);
+    grad.addColorStop(0.5, dark);
+    grad.addColorStop(1, colorHex);
+    pctx.fillStyle = grad;
+    pctx.fillRect(x, top, w, h);
+  }
+  // Same BT long-note skin as Home -- see the matching comment there
+  // (bright edges, darker center, no gap needed).
+  function drawRecBtLongNote(n, x, w, colorHex){
+    const effectiveEnd = n.end===null ? lastRecording.duration : n.end;
+    const yEnd = yFromRel(effectiveEnd), yStart = yFromRel(n.start);
+    const top = Math.min(yEnd,yStart), bottom = Math.max(yEnd,yStart);
+    const h = Math.max(TAP_H, bottom-top);
+    const dark = darkenHex(colorHex, 0.72);
+    const grad = pctx.createLinearGradient(x, 0, x+w, 0);
+    grad.addColorStop(0, colorHex);
+    grad.addColorStop(0.5, dark);
+    grad.addColorStop(1, colorHex);
+    pctx.fillStyle = grad;
+    pctx.fillRect(x, top, w, h);
+  }
+
+  // Same layering as Home (bottom to top): FX-long, BT-long, FX-tap, BT-tap.
+  ['fxL','fxR'].forEach(lane=>{
+    const [x,w] = fxGeom[lane];
+    lastRecording.notes.filter(n=>n.lane===lane && classifyRecNote(n)==='long')
+      .forEach(n=> drawRecFxLongNote(n, x, w, LANE_COLOR[lane]));
+  });
+  layout.BT_ORDER.forEach(lane=>{
+    const [x,w] = btGeom(lane);
+    lastRecording.notes.filter(n=>n.lane===lane && classifyRecNote(n)==='long')
+      .forEach(n=> drawRecBtLongNote(n, x, w, LANE_COLOR[lane]));
+  });
+  ['fxL','fxR'].forEach(lane=>{
+    const [x,w] = fxGeom[lane];
+    lastRecording.notes.filter(n=>n.lane===lane && classifyRecNote(n)==='tap')
+      .forEach(n=> drawRecTapNote(n, x, w, LANE_COLOR[lane]));
+  });
+  layout.BT_ORDER.forEach(lane=>{
+    const [x,w] = btGeom(lane);
+    lastRecording.notes.filter(n=>n.lane===lane && classifyRecNote(n)==='tap')
+      .forEach(n=> drawRecTapNote(n, x, w, LANE_COLOR[lane]));
+  });
+
+  // Redraw the lane dividers on top of every note just painted -- same
+  // reasoning as Home (see the matching comment there).
+  pctx.strokeStyle = COLORS.grid;
+  pctx.lineWidth = 1*scale;
+  for(let i=0;i<=4;i++){
+    const x = layout.offsetX + layout.unit*i;
+    pctx.beginPath(); pctx.moveTo(x,0); pctx.lineTo(x,H); pctx.stroke();
+  }
+
+  // VOL note strips: each turning session becomes one flowing bar (like a
+  // BT/FX long note), landing on the same 8-lane ⇦⇨ABCD⇦⇨ pitch as the
+  // arrows below.
+  drawVolNoteBars(pctx, lastRecording.vol.L, volOuterLpx, volInnerLpx, volColWpx, volColorL, yFromRel, TAP_H);
+  drawVolNoteBars(pctx, lastRecording.vol.R, volInnerRpx, volOuterRpx, volColWpx, volColorR, yFromRel, TAP_H);
+
+  info.textContent = `録画時間 ${formatTime(durationSec)}`;
+
+  // Position the fixed "judge line" overlay near the bottom of the visible
+  // viewport (not the whole tall canvas) -- notes scroll down through the
+  // viewport during auto-scroll, so this mimics a real rhythm game's
+  // judgment line, and is what the key-sound timing is based on below.
+  const judgeLineEl = document.getElementById('pbJudgeLine');
+  const viewportW = viewportElForPad.clientWidth;
+  const viewportH = viewportHForPad;
+  const judgeOffsetPx = judgeOffsetPxForPad;
+  judgeLineEl.style.top = judgeOffsetPx + 'px';
+
+  // Mask the side of the line AWAY from where the dashboard sits -- below
+  // it normally ("下"), above it when the controls have moved to "上",
+  // same idea as Home's resizeCanvas.
+  const belowMask = document.getElementById('pbBelowMask');
+  if(pbControlsAtTop){
+    belowMask.style.top = '0px';
+    belowMask.style.height = Math.max(0, judgeOffsetPx - 2) + 'px';
+  } else {
+    belowMask.style.top = (judgeOffsetPx + 2) + 'px';
+    belowMask.style.height = Math.max(0, viewportH - judgeOffsetPx - 2) + 'px';
+  }
+
+  // Position the L/R knob indicators and the BT/FX button row relative to
+  // the canvas, vertically aligned with the BT buttons' center (see the
+  // matching comment in resizeCanvas for why: the old L/R circle used to
+  // anchor this height, and it's been removed). In "上" mode the whole
+  // cluster sits ABOVE the line instead of below it (controller, then
+  // line, same order as Home).
+  const pbIndL = document.getElementById('pbVolIndicatorL');
+  const pbIndR = document.getElementById('pbVolIndicatorR');
+  const canvasLeftEdge = Math.max(10, ((viewportW - OPTIONS_PANEL_RESERVED_W) - frameW)/2);
+  const pbBtUnit = kbFrameW/4, pbBtSquareSize = pbBtUnit*0.55*1.3;
+  const pbFxH = 32 * (2/3) * 0.8, pbBtFxGap = 10;
+  const pbClusterHeight = pbBtSquareSize + pbBtFxGap + pbFxH;
+  const pbRowTopCss = pbControlsAtTop ? (judgeOffsetPx - 13 - pbClusterHeight) : (judgeOffsetPx + 13);
+  const pbBtCenterY = pbRowTopCss + pbBtSquareSize/2;
+  // Both indicators share the SAME full-width coordinate frame (see the
+  // matching comment in resizeCanvas) so each arrow can sit at its exact
+  // computed lane-x (geom.volOuter*/volInner*).
+  [pbIndL, pbIndR].forEach(ind=>{
+    ind.style.left = canvasLeftEdge + 'px';
+    ind.style.width = frameW + 'px';
+    ind.style.top = pbBtCenterY + 'px';
+    ind.style.transform = 'translateY(-50%)';
+  });
+  document.getElementById('pbVolArrowL_neg').style.left = geom.volOuterL + 'px';
+  document.getElementById('pbVolArrowL_pos').style.left = geom.volInnerL + 'px';
+  document.getElementById('pbVolArrowR_neg').style.left = geom.volInnerR + 'px';
+  document.getElementById('pbVolArrowR_pos').style.left = geom.volOuterR + 'px';
+
+  positionBtnRow(
+    document.getElementById('btnRowPb'), 'btnSquarePb', 'btnFxPb',
+    canvasLeftEdge + geom.kbOffset, kbFrameW, pbRowTopCss
+  );
+
+  // Save geometry so the auto-scroll loop can convert scrollTop <-> tRel
+  // without recomputing/duplicating this logic. renderSpeed (not the raw
+  // Home "speed" setting) is what this canvas was actually laid out with.
+  pbGeom = { topPad, bottomPad, cssHeight, judgeOffsetPx, renderSpeed };
+
+  // Start (oldest) is at the bottom now, so show it by default -- scroll
+  // all the way down when a fresh recording is rendered.
+  stopPlaybackScroll();
+  const scrollEl = document.getElementById('playbackScroll');
+  scrollEl.scrollTop = scrollEl.scrollHeight;
+  document.getElementById('pbSeekBar').value = 0;
+  updatePlaybackVolIndicators(scrollEl.scrollTop);
+  updatePlaybackBtnIndicators(scrollEl.scrollTop);
+}
+
+// ---- Simple synthesized hand-clap sound (Web Audio API, no external assets) ----
+let audioCtx = null;
+function ensureAudioCtx(){
+  if(!audioCtx){
+    try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e){ audioCtx = null; }
+  }
+  if(audioCtx && audioCtx.state === 'suspended'){
+    audioCtx.resume().catch(()=>{});
+  }
+  return audioCtx;
+}
+function playClapSound(){
+  const ctxA = ensureAudioCtx();
+  if(!ctxA) return;
+  const t0 = ctxA.currentTime;
+  const dur = 0.15;
+  const bufferSize = Math.floor(ctxA.sampleRate * dur);
+  const buffer = ctxA.createBuffer(1, bufferSize, ctxA.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i] = Math.random()*2 - 1;
+
+  const noise = ctxA.createBufferSource();
+  noise.buffer = buffer;
+
+  const bandpass = ctxA.createBiquadFilter();
+  bandpass.type = 'bandpass';
+  bandpass.frequency.value = 1400;
+  bandpass.Q.value = 0.7;
+
+  const gain = ctxA.createGain();
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.5, t0 + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+  noise.connect(bandpass);
+  bandpass.connect(gain);
+  gain.connect(ctxA.destination);
+  noise.start(t0);
+  noise.stop(t0 + dur);
+}
+
+function playMetronomeClick(accent){
+  const ctxA = ensureAudioCtx();
+  if(!ctxA) return;
+  const t0 = ctxA.currentTime;
+  const dur = 0.08;
+  const osc = ctxA.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = accent ? 1500 : 1000;
+  const gain = ctxA.createGain();
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.6, t0 + 0.003);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(gain);
+  gain.connect(ctxA.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur);
+}
+
+// ---- Playback auto-scroll (Start/Stop) ----
+let pbGeom = { topPad:24, bottomPad:24, cssHeight:0, judgeOffsetPx:0, renderSpeed:400 };
+let playbackScrolling = false;
+let playbackScrollRAF = null;
+let playbackLastT = null;
+let playbackNoteIdx = 0;
+function stopPlaybackScroll(){
+  playbackScrolling = false;
+  if(playbackScrollRAF) cancelAnimationFrame(playbackScrollRAF);
+  playbackScrollRAF = null;
+  const btn = document.getElementById('playbackPlayBtn');
+  if(btn) btn.textContent = '▶ 再生';
+}
+function tRelFromScrollTop(scrollTop){
+  // The reference point is the judge line's position, which sits
+  // judgeOffsetPx down from the top of the viewport -- so its absolute
+  // position within the tall canvas is (scrollTop + judgeOffsetPx).
+  const lineAbsY = scrollTop + pbGeom.judgeOffsetPx;
+  return (pbGeom.cssHeight - pbGeom.bottomPad - lineAbsY) / pbGeom.renderSpeed * 1000;
+}
+function maxScrollValue(){
+  const scrollEl = document.getElementById('playbackScroll');
+  return Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+}
+// Resume key-sound triggering from wherever playback currently is, so
+// jumping around (via seek or (re)starting mid-way) doesn't blast every
+// earlier note's sound at once.
+function resyncPlaybackNoteIndex(){
+  if(!lastRecording) return;
+  const scrollEl = document.getElementById('playbackScroll');
+  const tRelNow = tRelFromScrollTop(scrollEl.scrollTop);
+  playbackNoteIdx = lastRecording.notes.findIndex(n => n.start > tRelNow);
+  if(playbackNoteIdx === -1) playbackNoteIdx = lastRecording.notes.length;
+}
+function syncSeekBarFromScroll(){
+  const seekBar = document.getElementById('pbSeekBar');
+  if(document.activeElement===seekBar) return; // don't fight the user's drag
+  const maxS = maxScrollValue();
+  const scrollEl = document.getElementById('playbackScroll');
+  const frac = maxS>0 ? 1 - (scrollEl.scrollTop/maxS) : 0; // 0=start, 1=end
+  seekBar.value = Math.round(frac*1000);
+}
+
+// Recorded VOL data has no continuous "lane" anymore -- to light up the
+// L/R arrows during playback, look up whether there's a sample close to
+// the current judge-line time and, if so, which direction it was moving.
+const PB_VOL_ACTIVE_WINDOW_MS = 100;
+function updatePlaybackVolIndicators(scrollTop){
+  if(!lastRecording){
+    setArrowState('pbVol', 'L', 0);
+    setArrowState('pbVol', 'R', 0);
+    return;
+  }
+  const tRelNow = tRelFromScrollTop(scrollTop);
+  ['L','R'].forEach(side=>{
+    const samples = lastRecording.vol[side];
+    let idx = -1;
+    for(let i=0;i<samples.length;i++){
+      if(samples[i].t <= tRelNow) idx = i; else break;
+    }
+    let dir = 0;
+    if(idx>=0 && (tRelNow - samples[idx].t) <= PB_VOL_ACTIVE_WINDOW_MS){
+      if(idx>0 && samples[idx-1].session===samples[idx].session){
+        dir = Math.sign(samples[idx].v - samples[idx-1].v);
+      } else if(idx+1<samples.length && samples[idx+1].session===samples[idx].session){
+        dir = Math.sign(samples[idx+1].v - samples[idx].v);
+      }
+    }
+    setArrowState('pbVol', side, dir);
+  });
+}
+
+// Lights up the BT/FX button indicators during playback based on whether a
+// recorded note is "active" at the current judge-line time (taps count as
+// active for a short fixed window, matching how they render on screen).
+const PB_BTN_TAP_WINDOW_MS = 80;
+function updatePlaybackBtnIndicators(scrollTop){
+  LANES.forEach(lane=>{
+    const prefix = lane.startsWith('fx') ? 'btnFxPb_' : 'btnSquarePb_';
+    const el = document.getElementById(prefix+lane);
+    if(!el) return;
+    let active = false;
+    if(lastRecording){
+      const tRelNow = tRelFromScrollTop(scrollTop);
+      active = lastRecording.notes.some(n=>{
+        if(n.lane!==lane) return false;
+        const effectiveEnd = n.end===null ? lastRecording.duration : n.end;
+        const isLong = (effectiveEnd-n.start) >= options.longThresholdMs;
+        const windowEnd = isLong ? effectiveEnd : (n.start+PB_BTN_TAP_WINDOW_MS);
+        return n.start<=tRelNow && tRelNow<=windowEnd;
+      });
+    }
+    el.classList.toggle('active', active);
+  });
+}
+
+const pbSeekBar = document.getElementById('pbSeekBar');
+pbSeekBar.addEventListener('input', ()=>{
+  if(!lastRecording) return;
+  const scrollEl = document.getElementById('playbackScroll');
+  const maxS = maxScrollValue();
+  const frac = parseInt(pbSeekBar.value,10)/1000; // 0=start, 1=end
+  scrollEl.scrollTop = maxS*(1-frac);
+  resyncPlaybackNoteIndex();
+  updatePlaybackVolIndicators(scrollEl.scrollTop);
+  updatePlaybackBtnIndicators(scrollEl.scrollTop);
+});
+document.getElementById('playbackScroll').addEventListener('scroll', ()=>{
+  syncSeekBarFromScroll();
+  const st = document.getElementById('playbackScroll').scrollTop;
+  updatePlaybackVolIndicators(st);
+  updatePlaybackBtnIndicators(st);
+});
+
+function startPlaybackScroll(){
+  const scrollEl = document.getElementById('playbackScroll');
+  if(!lastRecording || scrollEl.scrollTop<=0) scrollEl.scrollTop = scrollEl.scrollHeight; // restart from the bottom (start) if already at the end
+  playbackScrolling = true;
+  document.getElementById('playbackPlayBtn').textContent = '⏸ 停止';
+  playbackLastT = performance.now();
+  ensureAudioCtx();
+  resyncPlaybackNoteIndex();
+
+  function step(now){
+    if(!playbackScrolling) return;
+    const dt = (now - playbackLastT)/1000;
+    playbackLastT = now;
+    scrollEl.scrollTop -= pbGeom.renderSpeed*options.playbackSpeedMultiplier*dt; // scrolling up = moving forward in time (scaled by playback speed)
+    syncSeekBarFromScroll();
+    updatePlaybackVolIndicators(scrollEl.scrollTop);
+    updatePlaybackBtnIndicators(scrollEl.scrollTop);
+
+    if(options.playbackKeySound){
+      const tRelNow = tRelFromScrollTop(scrollEl.scrollTop);
+      while(playbackNoteIdx < lastRecording.notes.length && lastRecording.notes[playbackNoteIdx].start <= tRelNow){
+        playClapSound();
+        playbackNoteIdx++;
+      }
+    }
+
+    if(scrollEl.scrollTop <= 0){
+      scrollEl.scrollTop = 0;
+      syncSeekBarFromScroll();
+      stopPlaybackScroll();
+      return;
+    }
+    playbackScrollRAF = requestAnimationFrame(step);
+  }
+  playbackScrollRAF = requestAnimationFrame(step);
+}
+document.getElementById('playbackPlayBtn').addEventListener('click', ()=>{
+  if(!lastRecording) return;
+  if(playbackScrolling) stopPlaybackScroll();
+  else startPlaybackScroll();
+});
+
+/* ================= PRACTICE MODE ================= */
+const PRACTICE_LANES = ['btA','fxL','btB','btC','fxR','btD']; // iteration order: A, L, B, C, R, D
+const PRACTICE_LANE_LABEL = {btA:'A',btB:'B',btC:'C',btD:'D',fxL:'FX-L',fxR:'FX-R'};
+
+// The chart is authored block-by-block again (1 block = 1 beat, each with
+// its OWN subdivision -- same data shape as the original click-editor) for
+// TAPS. Long notes are a separate flat list addressed in GLOBAL
+// half-block units (1 half-block = 0.5 beat, the minimum hold length),
+// independent of any individual block's subdivision -- this sidesteps the
+// question of "what does step N mean" when a hold crosses into a block
+// with a different subdivision, since half-a-beat is a fixed, tempo-only
+// unit regardless of how finely a given beat happens to be diced up for
+// its own taps.
+function createEmptyBlock(subdivision){
+  const stepsInBlock = subdivision/4;
+  const cells = {};
+  PRACTICE_LANES.forEach(l => cells[l] = new Array(stepsInBlock).fill(false));
+  return { subdivision, cells };
+}
+let practiceBlocks = [];
+for(let i=0;i<4;i++) practiceBlocks.push(createEmptyBlock(16));
+let practiceBlockClipboard = null;
+let practiceBlockClipboardSourceIdx = null;
+let practiceLongNotes = []; // {lane, startHalf, lenHalf} -- lenHalf>=1 (1 = 0.5 block, the minimum)
+
+function changeBlockSubdivision(blockIdx, newSubdiv){
+  const block = practiceBlocks[blockIdx];
+  const oldSteps = block.subdivision/4;
+  const newSteps = newSubdiv/4;
+  const fresh = {};
+  PRACTICE_LANES.forEach(lane=>{
+    fresh[lane] = new Array(newSteps).fill(false);
+    if(newSteps >= oldSteps && newSteps % oldSteps === 0){
+      const ratio = newSteps/oldSteps;
+      block.cells[lane].forEach((v,i)=>{ if(v) fresh[lane][i*ratio] = true; });
+    } else if(oldSteps % newSteps === 0){
+      const ratio = oldSteps/newSteps;
+      block.cells[lane].forEach((v,i)=>{ if(v && i%ratio===0) fresh[lane][i/ratio] = true; });
+    }
+  });
+  block.subdivision = newSubdiv;
+  block.cells = fresh;
+}
+
+// Every block gets a fixed pixel height regardless of its own subdivision
+// (a 24分 block's rows are just individually shorter to fit the same
+// height) -- this keeps time-to-pixels uniform across the whole chart, and
+// makes "half a block" always land at exactly BLOCK_H/2 no matter what
+// subdivision is in effect at that point.
+const PRACTICE_BLOCK_H = 132; // CSS px per block/beat
+const PRACTICE_CHART_W = 300; // CSS px, full width of the editor timeline
+
+const PRACTICE_NOTE_WIDTH_SCALE = 1;
+// Applies to TAP notes' rendered height only -- NOT to long notes, whose
+// height must stay proportional to their actual duration (lenHalf) to
+// mean anything.
+const PRACTICE_TAP_HEIGHT_SCALE = 2/3;
+function practiceChartLayout(){
+  const layout = computeLayout(PRACTICE_CHART_W);
+  const fxGeom = {};
+  ['fxL','fxR'].forEach(lane=>{
+    const baseX = lane==='fxL' ? layout.btX('btA') : layout.btX('btC');
+    const baseW = layout.unit*2;
+    const w = baseW*PRACTICE_NOTE_WIDTH_SCALE;
+    fxGeom[lane] = [baseX+(baseW-w)/2, w];
+  });
+  function btGeom(lane){
+    const x=layout.btX(lane); const baseW=layout.unit*0.9; const w=baseW*PRACTICE_NOTE_WIDTH_SCALE;
+    return [x+(layout.unit-w)/2, w];
+  }
+  function geomFor(lane){ return lane.startsWith('fx') ? fxGeom[lane] : btGeom(lane); }
+  return { layout, geomFor };
+}
+function practiceLaneRectContainsX(lane, xCss){
+  const [lx,lw] = practiceChartLayout().geomFor(lane);
+  return xCss>=lx && xCss<=lx+lw;
+}
+// Full column width (unlike geomFor's narrower drawn-note width) -- used
+// specifically to decide WHICH LANE a click/drag is over when placing a
+// new note, so a thinner note width doesn't also shrink the clickable
+// area used to pick a lane in the first place.
+function practiceLaneColumnRect(lane){
+  const layout = computeLayout(PRACTICE_CHART_W);
+  if(lane==='fxL') return [layout.btX('btA'), layout.unit*2];
+  if(lane==='fxR') return [layout.btX('btC'), layout.unit*2];
+  return [layout.btX(lane), layout.unit];
+}
+function practiceLaneFromXAmong(xCss, laneOptions){
+  return laneOptions.find(lane=>{
+    const [lx,lw] = practiceLaneColumnRect(lane);
+    return xCss>=lx && xCss<=lx+lw;
+  }) || null;
+}
+function practiceChartCssHeight(){ return practiceBlocks.length * PRACTICE_BLOCK_H; }
+// blockIdx 0 sits at the BOTTOM of the chart (time 0), later blocks upward
+// -- same bottom-to-top convention used everywhere else in this tool.
+function practiceBlockTopY(blockIdx){ return (practiceBlocks.length-1-blockIdx) * PRACTICE_BLOCK_H; }
+function practiceCellFromY(yCss){
+  const totalH = practiceChartCssHeight();
+  yCss = Math.max(0, Math.min(totalH-0.01, yCss));
+  const visualRow = Math.floor(yCss/PRACTICE_BLOCK_H);
+  const blockIdx = practiceBlocks.length-1-visualRow;
+  const withinBlockFromTop = yCss - visualRow*PRACTICE_BLOCK_H;
+  const stepsInBlock = practiceBlocks[blockIdx].subdivision/4;
+  const stepRowH = PRACTICE_BLOCK_H/stepsInBlock;
+  let step = Math.floor((PRACTICE_BLOCK_H-withinBlockFromTop)/stepRowH);
+  step = Math.max(0, Math.min(stepsInBlock-1, step));
+  return {blockIdx, step};
+}
+function practiceHalfFromY(yCss){
+  const totalHalves = practiceBlocks.length*2;
+  const totalH = practiceChartCssHeight();
+  yCss = Math.max(0, Math.min(totalH-0.01, yCss));
+  const rowFromTop = Math.floor(yCss/(PRACTICE_BLOCK_H/2));
+  const half = totalHalves-1-rowFromTop;
+  return Math.max(0, Math.min(totalHalves-1, half));
+}
+
+
+function buildPracticeBlockControlDiv(blockIdx){
+  const block = practiceBlocks[blockIdx];
+  const div = document.createElement('div');
+  div.style.height = PRACTICE_BLOCK_H + 'px';
+  div.style.boxSizing = 'border-box';
+  div.style.display = 'flex';
+  div.style.flexDirection = 'column';
+  div.style.gap = '3px';
+  div.style.padding = '3px';
+  const isCopiedSource = (blockIdx === practiceBlockClipboardSourceIdx);
+  if(isCopiedSource){ div.style.background = 'rgba(123,215,255,0.18)'; div.style.borderRadius = '6px'; }
+
+  const label = document.createElement('div');
+  label.textContent = `${Math.floor(blockIdx/4)+1}-${(blockIdx%4)+1}`;
+  label.style.fontSize = '13px';
+  label.style.fontWeight = '700';
+  label.style.color = '#fff';
+  div.appendChild(label);
+
+  const subSel = document.createElement('select');
+  subSel.style.width = '100%';
+  subSel.style.fontSize = '10px';
+  subSel.style.padding = '3px';
+  subSel.style.background = '#fff';
+  subSel.style.color = '#000';
+  subSel.style.border = '1px solid var(--line)';
+  [{v:16,label:'4,8,16分'},{v:24,label:'12,24分'}].forEach(({v,label:txt})=>{
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = txt;
+    if(v===block.subdivision) opt.selected = true;
+    subSel.appendChild(opt);
+  });
+  subSel.addEventListener('change', ()=>{
+    changeBlockSubdivision(blockIdx, parseInt(subSel.value,10));
+    renderPracticeChartEditor();
+  });
+  div.appendChild(subSel);
+
+  const blockHasNotes = PRACTICE_LANES.some(lane=> block.cells[lane].some(v=>v));
+  const btnRow = document.createElement('div');
+  btnRow.style.display = 'flex';
+  btnRow.style.gap = '2px';
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'small';
+  copyBtn.textContent = 'コピー';
+  copyBtn.style.flex = '1';
+  copyBtn.style.fontSize = '10px';
+  copyBtn.style.padding = '3px 2px';
+  copyBtn.disabled = !blockHasNotes;
+  if(isCopiedSource){ copyBtn.style.background = '#ffd23f'; copyBtn.style.color = '#04121a'; copyBtn.style.borderColor = '#ffd23f'; }
+  copyBtn.addEventListener('click', ()=>{
+    if(isCopiedSource){ practiceBlockClipboard = null; practiceBlockClipboardSourceIdx = null; }
+    else { practiceBlockClipboard = JSON.parse(JSON.stringify(block)); practiceBlockClipboardSourceIdx = blockIdx; }
+    renderPracticeChartEditor();
+  });
+  btnRow.appendChild(copyBtn);
+
+  const pasteBtn = document.createElement('button');
+  pasteBtn.className = 'small';
+  pasteBtn.textContent = '貼付';
+  pasteBtn.style.flex = '1';
+  pasteBtn.style.fontSize = '10px';
+  pasteBtn.style.padding = '3px 2px';
+  pasteBtn.disabled = !practiceBlockClipboard || isCopiedSource;
+  pasteBtn.addEventListener('click', ()=>{
+    practiceBlocks[blockIdx] = JSON.parse(JSON.stringify(practiceBlockClipboard));
+    renderPracticeChartEditor();
+  });
+  btnRow.appendChild(pasteBtn);
+  div.appendChild(btnRow);
+
+  const btnRow2 = document.createElement('div');
+  btnRow2.style.display = 'flex';
+  btnRow2.style.gap = '2px';
+
+  const flipBtn = document.createElement('button');
+  flipBtn.className = 'small';
+  flipBtn.textContent = '反転';
+  flipBtn.style.flex = '1';
+  flipBtn.style.fontSize = '10px';
+  flipBtn.style.padding = '3px 2px';
+  flipBtn.disabled = !blockHasNotes;
+  flipBtn.addEventListener('click', ()=>{
+    // Mirror this block's taps left<->right: btA<->btD, btB<->btC, fxL<->fxR.
+    [['btA','btD'],['btB','btC'],['fxL','fxR']].forEach(([a,b])=>{
+      const tmp = block.cells[a];
+      block.cells[a] = block.cells[b];
+      block.cells[b] = tmp;
+    });
+    renderPracticeChartEditor();
+  });
+  btnRow2.appendChild(flipBtn);
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'small dangerBtn';
+  clearBtn.textContent = 'クリア';
+  clearBtn.style.flex = '1';
+  clearBtn.style.fontSize = '10px';
+  clearBtn.style.padding = '3px 2px';
+  clearBtn.disabled = !blockHasNotes;
+  clearBtn.addEventListener('click', ()=>{
+    PRACTICE_LANES.forEach(lane=> block.cells[lane].fill(false));
+    if(practiceSelectedNote && practiceSelectedNote.kind==='tap' && practiceSelectedNote.blockIdx===blockIdx) practiceSelectedNote = null;
+    renderPracticeChartEditor();
+  });
+  btnRow2.appendChild(clearBtn);
+  div.appendChild(btnRow2);
+
+  return div;
+}
+
+function renderPracticeBlockControls(){
+  const container = document.getElementById('practiceChartBlockControls');
+  container.innerHTML = '';
+  // column-reverse means later blocks appended normally end up visually
+  // stacked bottom-to-top in block order -- matching the canvas.
+  for(let b=0;b<practiceBlocks.length;b++) container.appendChild(buildPracticeBlockControlDiv(b));
+}
+
+// Draws the whole authored chart: per-block tap grids (each block's own
+// subdivision) plus the separate half-block-addressed long notes, on one
+// continuous canvas. Step 0 of block 0 is at the very BOTTOM (time 0).
+function renderPracticeChartCanvas(){
+  const canvas = document.getElementById('practiceChartCanvas');
+  const scale = devicePixelRatio;
+  const cssH = practiceChartCssHeight();
+  canvas.style.width = PRACTICE_CHART_W + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width = PRACTICE_CHART_W*scale;
+  canvas.height = cssH*scale;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = COLORS.laneBg;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Device-pixel geometry for drawing (kept separate from
+  // practiceChartLayout()'s CSS-pixel geometry, which drives hit-testing
+  // and the CSS-styled drag-preview element -- the two units must never mix).
+  const dLayout = computeLayout(canvas.width);
+  const dFxGeom = {};
+  ['fxL','fxR'].forEach(lane=>{
+    const baseX = lane==='fxL' ? dLayout.btX('btA') : dLayout.btX('btC');
+    const baseW = dLayout.unit*2;
+    const w = baseW*PRACTICE_NOTE_WIDTH_SCALE;
+    dFxGeom[lane] = [baseX+(baseW-w)/2, w];
+  });
+  function dBtGeom(lane){
+    const x=dLayout.btX(lane); const baseW=dLayout.unit*0.9; const w=baseW*PRACTICE_NOTE_WIDTH_SCALE;
+    return [x+(dLayout.unit-w)/2, w];
+  }
+  function dGeomFor(lane){ return lane.startsWith('fx') ? dFxGeom[lane] : dBtGeom(lane); }
+  const blockHpx = PRACTICE_BLOCK_H*scale;
+
+  // Grid lines, block by block (each may have its own subdivision).
+  practiceBlocks.forEach((block, blockIdx)=>{
+    // practiceBlockTopY() already returns "distance from the canvas TOP" in
+    // CSS px, so this block's bottom edge (in device px) is simply that
+    // plus its own height -- NOT canvas.height minus it (that inverted the
+    // whole block order, which was the root cause of clicks landing in the
+    // wrong block).
+    const blockBottomY = (practiceBlockTopY(blockIdx) + PRACTICE_BLOCK_H)*scale;
+    const stepsInBlock = block.subdivision/4;
+    const stepRowHpx = blockHpx/stepsInBlock;
+    for(let step=0; step<=stepsInBlock; step++){
+      const y = blockBottomY - step*stepRowHpx;
+      const isBeatEdge = (step===0 || step===stepsInBlock);
+      ctx.strokeStyle = isBeatEdge ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.45)';
+      ctx.lineWidth = (isBeatEdge?2.5:1.5)*scale;
+      if(!isBeatEdge) ctx.setLineDash([5*scale,4*scale]);
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+      if(!isBeatEdge) ctx.setLineDash([]);
+    }
+    // Measure line (every 4 blocks) drawn bold at the block's start.
+    if(blockIdx % 4 === 0){
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 2*scale;
+      ctx.beginPath(); ctx.moveTo(0,blockBottomY); ctx.lineTo(canvas.width,blockBottomY); ctx.stroke();
+    }
+  });
+  ctx.strokeStyle = COLORS.grid;
+  ctx.lineWidth = 1*scale;
+  for(let i=0;i<=4;i++){
+    const x = dLayout.unit*i;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+  }
+
+  const isSelectedTap = (blockIdx,step,lane)=> practiceSelectedNote && practiceSelectedNote.kind==='tap' &&
+    practiceSelectedNote.blockIdx===blockIdx && practiceSelectedNote.step===step && practiceSelectedNote.lane===lane;
+  const isSelectedLong = (n)=> practiceSelectedNote && practiceSelectedNote.kind==='long' && practiceSelectedNote.note===n;
+
+  function drawTap(lane, blockIdx, step){
+    const [x,w] = dGeomFor(lane);
+    const blockBottomY = (practiceBlockTopY(blockIdx) + PRACTICE_BLOCK_H)*scale;
+    const stepsInBlock = practiceBlocks[blockIdx].subdivision/4;
+    const stepRowHpx = blockHpx/stepsInBlock;
+    const rowBottom = blockBottomY - step*stepRowHpx; // this cell's bottom edge (the head/hit-point side)
+    // Height is fixed to whatever 6分割 (the finer of the two subdivision
+    // presets) would give, regardless of THIS block's own subdivision, so
+    // 4分割 and 6分割 blocks show the same note size instead of 4分割's
+    // taller cells producing visibly taller notes.
+    const noteH = (blockHpx/6)*PRACTICE_TAP_HEIGHT_SCALE;
+    const yTop = rowBottom - noteH; // bottom-aligned within the cell
+    ctx.fillStyle = LANE_COLOR[lane];
+    ctx.fillRect(x, yTop, w, noteH);
+    if(isSelectedTap(blockIdx,step,lane)){
+      ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2*scale;
+      ctx.strokeRect(x, yTop, w, noteH);
+    }
+  }
+  function drawLong(n){
+    const [x,w] = dGeomFor(n.lane);
+    const totalH = canvas.height;
+    const halfHpx = blockHpx/2;
+    const yTop = totalH - (n.startHalf+n.lenHalf)*halfHpx;
+    const h = n.lenHalf*halfHpx;
+    // Same "grooved" look as the プレイ screen's long notes: a horizontal
+    // gradient (colour -> darker centre -> colour), darker for FX than BT.
+    const colorHex = LANE_COLOR[n.lane];
+    const dark = darkenHex(colorHex, n.lane.startsWith('fx') ? 0.62 : 0.72);
+    const grad = ctx.createLinearGradient(x, 0, x+w, 0);
+    grad.addColorStop(0, colorHex);
+    grad.addColorStop(0.5, dark);
+    grad.addColorStop(1, colorHex);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, yTop, w, h);
+    if(isSelectedLong(n)){
+      ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2*scale;
+      ctx.strokeRect(x, yTop, w, h);
+      // Resize handles at the top and bottom edges -- like PowerPoint's
+      // selection handles, these are what you actually grab to stretch the
+      // note; only visible once the note is selected, so a plain click
+      // never accidentally starts a resize.
+      const handleH = Math.min(h/3, PRACTICE_LONG_EDGE_PX*scale);
+      ctx.fillStyle = '#ffd23f';
+      ctx.fillRect(x, yTop, w, handleH);
+      ctx.fillRect(x, yTop+h-handleH, w, handleH);
+    }
+  }
+
+  // Layering (bottom to top): FX-long, BT-long, FX-tap, BT-tap -- same
+  // order as the real プレイ screen (a tap always sits above a long,
+  // regardless of type; BT sits above FX within the same kind).
+  practiceLongNotes.filter(n=>n.lane.startsWith('fx')).forEach(drawLong);
+  practiceLongNotes.filter(n=>!n.lane.startsWith('fx')).forEach(drawLong);
+  practiceBlocks.forEach((block,blockIdx)=> ['fxL','fxR'].forEach(lane=>
+    block.cells[lane].forEach((on,step)=>{ if(on) drawTap(lane,blockIdx,step); })));
+  practiceBlocks.forEach((block,blockIdx)=> ['btA','btB','btC','btD'].forEach(lane=>
+    block.cells[lane].forEach((on,step)=>{ if(on) drawTap(lane,blockIdx,step); })));
+}
+
+// A clean, non-interactive "what it'll actually look like" preview: same
+// notes and geometry as the main editor canvas, but without the editor's
+// own grid lines, dashed subdivisions, or selection highlighting -- just
+// lane dividers and the notes themselves, in the real play-style gradient
+// drawLong() uses. This lives in its OWN scroll box (kept in sync with the
+// main editor's, see practiceSetupScrollSync), and its canvas width is
+// measured from that box's actual available width every render -- never a
+// fixed pixel size -- so it always fits whatever space this panel has,
+// however wide or narrow the window is, instead of ever forcing the page
+// into horizontal scrolling.
+// A left-side margin reserved on the "完成イメージ" preview, outside the
+// lane area itself, for the per-measure number labels (see
+// renderPracticeChartPreviewCanvas).
+const PRACTICE_PREVIEW_GUTTER_PX = 14; // CSS px
+function renderPracticeChartPreviewCanvas(){
+  const canvas = document.getElementById('practiceChartPreviewCanvas');
+  const wrapper = document.getElementById('practiceChartPreviewScroll');
+  if(!canvas || !wrapper) return;
+  const scale = devicePixelRatio;
+  // Always shrink to fit ALL blocks within the panel's actual height (no
+  // scrolling needed) -- the width shrinks right along with it, at the
+  // same ratio, so the chart's proportions stay correct instead of
+  // stretching. A narrower lane is an accepted trade-off for never needing
+  // to scroll here.
+  const fullCssH = practiceChartCssHeight(); // total height at the editor's normal (1x) block size
+  const availH = Math.max(20, wrapper.clientHeight - 8); // -8 for the wrapper's own 4px padding each side
+  const shrink = fullCssH>0 ? Math.min(1, availH/fullCssH) : 1;
+  const cssH = fullCssH*shrink;
+  const cssW = Math.max(20, PRACTICE_CHART_W*shrink);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width = cssW*scale;
+  canvas.height = cssH*scale;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = COLORS.laneBg;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  const dLayout = computeLayout(Math.max(20, canvas.width - PRACTICE_PREVIEW_GUTTER_PX*scale), PRACTICE_PREVIEW_GUTTER_PX*scale);
+  const dFxGeom = { fxL:[dLayout.btX('btA'), dLayout.unit*2], fxR:[dLayout.btX('btC'), dLayout.unit*2] };
+  function dBtGeom(lane){ const x=dLayout.btX(lane); const w=dLayout.unit*0.9; return [x+(dLayout.unit-w)/2, w]; }
+  function dGeomFor(lane){ return lane.startsWith('fx') ? dFxGeom[lane] : dBtGeom(lane); }
+  // devScale folds BOTH the device-pixel-ratio scale AND the shrink-to-fit
+  // ratio into one factor, so every vertical measurement below (which is
+  // ultimately derived from PRACTICE_BLOCK_H, a "normal-size" CSS px
+  // constant) lands in the right place on this shrunk canvas.
+  const devScale = scale*shrink;
+  const blockHpx = PRACTICE_BLOCK_H*devScale;
+
+  practiceBlocks.forEach((block, blockIdx)=>{
+    // blockBottomY: this block's bottom edge (the downbeat / earliest time
+    // in the block) in device px. Must NOT be computed as "canvas.height
+    // minus ..." -- practiceBlockTopY() already returns a distance FROM
+    // the top, so adding the block height directly gives its bottom edge
+    // (this exact inversion was a real bug on the main editor canvas
+    // before; the preview had the same mistake, just harder to notice with
+    // only one line per measure to look at).
+    const blockBottomY = (practiceBlockTopY(blockIdx) + PRACTICE_BLOCK_H)*devScale;
+    const isMeasureStart = (blockIdx % 4 === 0);
+    if(isMeasureStart){
+      ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+      ctx.lineWidth = 2.5*scale;
+      // Only spans the lane area (from the gutter rightward) -- the gutter
+      // itself stays clear so the number sitting in it doesn't look like
+      // part of the lane.
+      ctx.beginPath(); ctx.moveTo(dLayout.offsetX,blockBottomY); ctx.lineTo(canvas.width,blockBottomY); ctx.stroke();
+      // The downbeat of each measure gets its measure number written in
+      // the gutter beside it (outside the lane itself), like the measure
+      // numbers shown elsewhere in this tool.
+      const measureNum = blockIdx/4 + 1;
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.font = `${Math.max(9, 10*scale)}px sans-serif`;
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(String(measureNum), 2*scale, blockBottomY-2*scale);
+    }
+  });
+  ctx.strokeStyle = COLORS.grid;
+  ctx.lineWidth = 1*scale;
+  for(let i=0;i<=4;i++){
+    const x = dLayout.offsetX + dLayout.unit*i;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+  }
+
+  function drawTapPreview(lane, blockIdx, step){
+    const [x,w] = dGeomFor(lane);
+    const blockBottomY = (practiceBlockTopY(blockIdx) + PRACTICE_BLOCK_H)*devScale;
+    const stepsInBlock = practiceBlocks[blockIdx].subdivision/4;
+    const stepRowHpx = blockHpx/stepsInBlock;
+    const rowBottom = blockBottomY - step*stepRowHpx;
+    const noteH = (blockHpx/6)*PRACTICE_TAP_HEIGHT_SCALE;
+    ctx.fillStyle = LANE_COLOR[lane];
+    ctx.fillRect(x, rowBottom-noteH, w, noteH);
+  }
+  function drawLongPreview(n){
+    const [x,w] = dGeomFor(n.lane);
+    const halfHpx = blockHpx/2;
+    const yTop = canvas.height - (n.startHalf+n.lenHalf)*halfHpx;
+    const h = n.lenHalf*halfHpx;
+    const colorHex = LANE_COLOR[n.lane];
+    const dark = darkenHex(colorHex, n.lane.startsWith('fx') ? 0.62 : 0.72);
+    const grad = ctx.createLinearGradient(x, 0, x+w, 0);
+    grad.addColorStop(0, colorHex); grad.addColorStop(0.5, dark); grad.addColorStop(1, colorHex);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, yTop, w, h);
+  }
+
+  // Same layering as the real プレイ screen: FX-long, BT-long, FX-tap, BT-tap.
+  practiceLongNotes.filter(n=>n.lane.startsWith('fx')).forEach(drawLongPreview);
+  practiceLongNotes.filter(n=>!n.lane.startsWith('fx')).forEach(drawLongPreview);
+  practiceBlocks.forEach((block,blockIdx)=> ['fxL','fxR'].forEach(lane=>
+    block.cells[lane].forEach((on,step)=>{ if(on) drawTapPreview(lane,blockIdx,step); })));
+  practiceBlocks.forEach((block,blockIdx)=> ['btA','btB','btC','btD'].forEach(lane=>
+    block.cells[lane].forEach((on,step)=>{ if(on) drawTapPreview(lane,blockIdx,step); })));
+}
+// The preview lives in its own scroll box (needed so its independently-
+// sized canvas can't force the main editor's box to scroll horizontally),
+// so keep the two boxes' scroll positions mirrored in both directions.
+function practiceSetupScrollSync(){
+  const a = document.getElementById('practiceChartScroll');
+  const b = document.getElementById('practiceChartPreviewScroll');
+  if(!a || !b) return;
+  let syncing = false;
+  a.addEventListener('scroll', ()=>{ if(syncing) return; syncing=true; b.scrollTop=a.scrollTop; syncing=false; });
+  b.addEventListener('scroll', ()=>{ if(syncing) return; syncing=true; a.scrollTop=b.scrollTop; syncing=false; });
+}
+practiceSetupScrollSync();
+window.addEventListener('resize', renderPracticeChartPreviewCanvas);
+
+function renderPracticeChartEditor(){
+  renderPracticeBlockControls();
+  renderPracticeChartCanvas();
+  renderPracticeChartPreviewCanvas();
+}
+function practiceChartIsEmpty(){
+  return practiceLongNotes.length===0 && practiceBlocks.every(block => PRACTICE_LANES.every(lane => block.cells[lane].every(v=>!v)));
+}
+
+// ---- Placement mode + selection/move/delete ----
+// Click a palette chip to enter (or leave) that placement mode; while
+// active, clicking an empty spot on the timeline places a note there.
+// Clicking an EXISTING note (in any mode) selects it instead -- from there,
+// dragging moves it, and Backspace deletes it.
+let practicePlaceMode = null; // 'bt' | 'fx' | 'long' | null
+let practiceSelectedNote = null; // {kind:'tap', blockIdx, step, lane} | {kind:'long', note}
+let practiceDragMove = null;
+
+function practiceUpdatePaletteUI(){
+  const map = { bt:'paletteChipBT', fx:'paletteChipFX', 'bt-long':'paletteChipBTLong', 'fx-long':'paletteChipFXLong' };
+  Object.entries(map).forEach(([type,id])=>{
+    document.getElementById(id).classList.toggle('active', practicePlaceMode===type);
+  });
+}
+['paletteChipBT','paletteChipFX','paletteChipBTLong','paletteChipFXLong'].forEach(id=>{
+  document.getElementById(id).addEventListener('click', ()=>{
+    const type = document.getElementById(id).dataset.type;
+    practicePlaceMode = (practicePlaceMode===type) ? null : type;
+    practiceSelectedNote = null;
+    practiceUpdatePaletteUI();
+    renderPracticeChartCanvas();
+  });
+});
+
+function practiceClientToLocal(clientX, clientY){
+  const canvas = document.getElementById('practiceChartCanvas');
+  const rect = canvas.getBoundingClientRect();
+  // Plain offset from the canvas's own top-left, same coordinate space
+  // offsetX/offsetY use for the initial click -- no extra ratio scaling,
+  // since the canvas's CSS size is always set explicitly (never stretched)
+  // by renderPracticeChartCanvas().
+  return { x: clientX-rect.left, y: clientY-rect.top };
+}
+function practiceFindTapAt(xCss,yCss,laneScope){
+  const {blockIdx,step} = practiceCellFromY(yCss);
+  const block = practiceBlocks[blockIdx];
+  for(const lane of laneScope){
+    if(practiceLaneRectContainsX(lane,xCss) && block.cells[lane][step]) return {blockIdx,step,lane};
+  }
+  return null;
+}
+function practiceFindLongAt(xCss,yCss,laneScope){
+  const half = practiceHalfFromY(yCss);
+  for(const lane of laneScope){
+    if(!practiceLaneRectContainsX(lane,xCss)) continue;
+    const n = practiceLongNotes.find(n=> n.lane===lane && half>=n.startHalf && half<n.startHalf+n.lenHalf);
+    if(n) return n;
+  }
+  return null;
+}
+// BT and FX visually overlap by design (a real chart very often has BT and
+// FX at the same time), so hit-testing an EXISTING note must only look at
+// lanes matching whatever's currently being placed -- otherwise clicking
+// empty BT space to place a BT note could "hit" an FX long note sitting
+// underneath it instead of seeing empty space there, blocking placement
+// entirely. With no placement mode active (plain click to select/move),
+// fall back to checking everything, BT before FX (matches draw order).
+function practiceHitTestLaneScope(){
+  if(practicePlaceMode==='bt' || practicePlaceMode==='bt-long') return ['btA','btB','btC','btD'];
+  if(practicePlaceMode==='fx' || practicePlaceMode==='fx-long') return ['fxL','fxR'];
+  return ['btA','btB','btC','btD','fxL','fxR'];
+}
+// Is a click on an existing long note near its top edge (the later/tail
+// end), near its bottom edge (the head, which arrives first), or in the
+// middle (move the whole note)? Edges resize; the middle moves it.
+const PRACTICE_LONG_EDGE_PX = 8;
+function practiceLongEdgeHit(n, yCss){
+  const halfH = PRACTICE_BLOCK_H/2;
+  const totalH = practiceChartCssHeight();
+  const yTopEdge = totalH - (n.startHalf+n.lenHalf)*halfH;
+  const yBottomEdge = totalH - n.startHalf*halfH;
+  if(Math.abs(yCss-yTopEdge) <= PRACTICE_LONG_EDGE_PX) return 'top';
+  if(Math.abs(yCss-yBottomEdge) <= PRACTICE_LONG_EDGE_PX) return 'bottom';
+  return 'middle';
+}
+function practiceShowPreviewRect(lane, yTopCss, hCss){
+  const [x,w] = practiceChartLayout().geomFor(lane);
+  const el = document.getElementById('practiceDragPreview');
+  el.style.display = 'block';
+  el.style.left = x+'px'; el.style.top = yTopCss+'px';
+  el.style.width = w+'px'; el.style.height = hCss+'px';
+  el.style.background = LANE_COLOR[lane];
+}
+function practiceHidePreview(){ document.getElementById('practiceDragPreview').style.display = 'none'; }
+
+// This block's step N, expressed in the same GLOBAL half-block units long
+// notes use, so a tap's exact instant can be checked against a long note's
+// [startHalf, startHalf+lenHalf) range.
+function practiceTapHalfPos(blockIdx, step){
+  const stepsInBlock = practiceBlocks[blockIdx].subdivision/4;
+  return blockIdx*2 + (step*2/stepsInBlock);
+}
+function practiceHalfPosInAnyLong(lane, pos){
+  return practiceLongNotes.some(n=> n.lane===lane && pos>=n.startHalf && pos<n.startHalf+n.lenHalf);
+}
+// Is there already ANY note (tap or long) in this lane somewhere within
+// [startHalf, endHalfExclusive)? Used to keep a newly-placed long note from
+// starting on top of something that's already there.
+function practiceLaneHasNoteInHalfRange(lane, startHalf, endHalfExclusive){
+  if(practiceLongNotes.some(n=> n.lane===lane && n.startHalf < endHalfExclusive && (n.startHalf+n.lenHalf) > startHalf)) return true;
+  for(let b=0;b<practiceBlocks.length;b++){
+    const stepsInBlock = practiceBlocks[b].subdivision/4;
+    const cells = practiceBlocks[b].cells[lane];
+    for(let s=0;s<stepsInBlock;s++){
+      if(!cells[s]) continue;
+      const pos = practiceTapHalfPos(b, s);
+      if(pos>=startHalf && pos<endHalfExclusive) return true;
+    }
+  }
+  return false;
+}
+document.getElementById('practiceChartCanvas').addEventListener('pointerdown', (e)=>{
+  // offsetX/offsetY are the browser's own CSS-pixel position relative to
+  // the canvas element itself -- using them directly (instead of manually
+  // computing from getBoundingClientRect()) avoids an entire class of
+  // scaling/rounding mismatch that could put the click position out of
+  // sync with where a note actually gets drawn.
+  const x = e.offsetX, y = e.offsetY;
+  const hitScope = practiceHitTestLaneScope();
+  const hitTap = practiceFindTapAt(x,y,hitScope);
+  const hitLong = !hitTap ? practiceFindLongAt(x,y,hitScope) : null;
+  if(hitTap || hitLong){
+    const alreadySelected = hitTap
+      ? (practiceSelectedNote && practiceSelectedNote.kind==='tap' && practiceSelectedNote.blockIdx===hitTap.blockIdx && practiceSelectedNote.step===hitTap.step && practiceSelectedNote.lane===hitTap.lane)
+      : (practiceSelectedNote && practiceSelectedNote.kind==='long' && practiceSelectedNote.note===hitLong);
+    if(!alreadySelected){
+      // First click on this note only selects it (like clicking a shape in
+      // PowerPoint before its handles appear) -- moving or resizing is a
+      // deliberate SECOND action on an already-selected note, so a stray
+      // click can never accidentally drag/resize/delete anything.
+      practiceSelectedNote = hitTap ? {kind:'tap', ...hitTap} : {kind:'long', note:hitLong};
+      renderPracticeChartCanvas();
+      return;
+    }
+    let mode = 'move';
+    if(hitLong){
+      const edge = practiceLongEdgeHit(hitLong, y);
+      if(edge!=='middle') mode = 'resize-'+edge;
+    }
+    practiceDragMove = { kind: hitTap?'tap':'long', mode, origin: hitTap||hitLong, startX:x, startY:y, moved:false, target:null };
+    return;
+  }
+  practiceSelectedNote = null;
+  if(practicePlaceMode==='bt' || practicePlaceMode==='fx'){
+    const {blockIdx,step} = practiceCellFromY(y);
+    const lane = practiceLaneFromXAmong(x, practicePlaceMode==='bt' ? ['btA','btB','btC','btD'] : ['fxL','fxR']);
+    // A tap can't coexist with a long note already covering that instant in
+    // the same lane -- taps and longs live in separate data structures with
+    // no shared grid, so without this check a tap could silently land
+    // "inside" an existing long, which doesn't mean anything in-game.
+    if(lane && !practiceHalfPosInAnyLong(lane, practiceTapHalfPos(blockIdx,step))){
+      practiceBlocks[blockIdx].cells[lane][step] = true;
+      renderPracticeChartEditor();
+    }
+  } else if(practicePlaceMode==='bt-long' || practicePlaceMode==='fx-long'){
+    // One click places a minimum-length (0.5 block) long note immediately,
+    // pre-selected so its resize handles are ready right away (same as
+    // PowerPoint auto-selecting a shape right after you insert it).
+    const half = practiceHalfFromY(y);
+    const laneOptions = practicePlaceMode==='bt-long' ? ['btA','btB','btC','btD'] : ['fxL','fxR'];
+    const lane = practiceLaneFromXAmong(x, laneOptions);
+    if(lane){
+      const totalHalves = practiceBlocks.length*2;
+      const startHalf = Math.min(half, totalHalves-1);
+      // Same reasoning as above, checked the other way: don't start a new
+      // long note somewhere that already has a tap or another long in it.
+      if(!practiceLaneHasNoteInHalfRange(lane, startHalf, startHalf+1)){
+        const newNote = { lane, startHalf, lenHalf: 1 };
+        practiceLongNotes.push(newNote);
+        practiceSelectedNote = { kind:'long', note:newNote };
+        renderPracticeChartEditor();
+      }
+    }
+  } else {
+    renderPracticeChartCanvas();
+  }
+});
+document.addEventListener('pointermove', (e)=>{
+  if(!practiceDragMove) return;
+  const {x,y} = practiceClientToLocal(e.clientX, e.clientY);
+  if(Math.abs(x-practiceDragMove.startX)>3 || Math.abs(y-practiceDragMove.startY)>3) practiceDragMove.moved = true;
+  if(!practiceDragMove.moved) return;
+  const laneOptions = ['btA','btB','btC','btD','fxL','fxR'];
+  const halfH = PRACTICE_BLOCK_H/2;
+  const totalHalves = practiceBlocks.length*2;
+  if(practiceDragMove.kind==='tap'){
+    const {blockIdx,step} = practiceCellFromY(y);
+    const lane = practiceLaneFromXAmong(x, laneOptions) || practiceDragMove.origin.lane;
+    practiceDragMove.target = {blockIdx,step,lane};
+    const stepsInBlock = practiceBlocks[blockIdx].subdivision/4;
+    const stepRowH = PRACTICE_BLOCK_H/stepsInBlock;
+    const rowBottom = practiceBlockTopY(blockIdx) + (stepsInBlock-step)*stepRowH;
+    const noteH = (PRACTICE_BLOCK_H/6)*PRACTICE_TAP_HEIGHT_SCALE;
+    practiceShowPreviewRect(lane, rowBottom-noteH, noteH);
+  } else if(practiceDragMove.mode==='resize-bottom'){
+    // Dragging the bottom edge (the head, which arrives first) moves the
+    // start while keeping the tail end fixed in place.
+    const o = practiceDragMove.origin;
+    const endHalf = o.startHalf + o.lenHalf; // fixed
+    let newStart = Math.max(0, Math.min(endHalf-1, practiceHalfFromY(y)));
+    practiceDragMove.target = { lane:o.lane, startHalf:newStart, lenHalf: endHalf-newStart };
+    const yTop = practiceChartCssHeight() - endHalf*halfH;
+    practiceShowPreviewRect(o.lane, yTop, (endHalf-newStart)*halfH);
+  } else if(practiceDragMove.mode==='resize-top'){
+    // Dragging the top edge (the tail) extends/shrinks the note's length,
+    // keeping the start (head) fixed in place.
+    const o = practiceDragMove.origin;
+    let newEnd = Math.min(totalHalves, Math.max(o.startHalf+1, practiceHalfFromY(y)+1));
+    practiceDragMove.target = { lane:o.lane, startHalf:o.startHalf, lenHalf: newEnd-o.startHalf };
+    const yTop = practiceChartCssHeight() - newEnd*halfH;
+    practiceShowPreviewRect(o.lane, yTop, (newEnd-o.startHalf)*halfH);
+  } else {
+    // Moving the whole note: length stays fixed, only its start (and lane)
+    // changes.
+    const lenHalf = practiceDragMove.origin.lenHalf;
+    let half = Math.max(0, Math.min(totalHalves-lenHalf, practiceHalfFromY(y)));
+    const lane = practiceLaneFromXAmong(x, laneOptions) || practiceDragMove.origin.lane;
+    practiceDragMove.target = {lane, startHalf: half};
+    const yTop = practiceChartCssHeight() - (half+lenHalf)*halfH;
+    practiceShowPreviewRect(lane, yTop, lenHalf*halfH);
+  }
+});
+document.addEventListener('pointerup', ()=>{
+  if(!practiceDragMove) return;
+  if(practiceDragMove.moved && practiceDragMove.target){
+    if(practiceDragMove.kind==='tap'){
+      const o = practiceDragMove.origin, t = practiceDragMove.target;
+      practiceBlocks[o.blockIdx].cells[o.lane][o.step] = false;
+      practiceBlocks[t.blockIdx].cells[t.lane][t.step] = true;
+      practiceSelectedNote = {kind:'tap', ...t};
+    } else {
+      const o = practiceDragMove.origin, t = practiceDragMove.target;
+      o.lane = t.lane; o.startHalf = t.startHalf; o.lenHalf = t.lenHalf;
+      practiceSelectedNote = {kind:'long', note:o};
+    }
+    renderPracticeChartEditor();
+  } else if(!practiceDragMove.moved){
+    // practiceDragMove is only ever created by clicking a note that was
+    // ALREADY selected (see pointerdown) -- if nothing was actually
+    // dragged, this was just a second click on it, which toggles it back
+    // off rather than doing nothing.
+    practiceSelectedNote = null;
+    renderPracticeChartCanvas();
+  }
+  practiceHidePreview();
+  practiceDragMove = null;
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.key!=='Backspace' && e.key!=='Delete') return;
+  if(!practiceSelectedNote) return;
+  if(document.activeElement && ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  e.preventDefault();
+  if(practiceSelectedNote.kind==='tap'){
+    const {blockIdx,step,lane} = practiceSelectedNote;
+    practiceBlocks[blockIdx].cells[lane][step] = false;
+  } else {
+    practiceLongNotes = practiceLongNotes.filter(n=>n!==practiceSelectedNote.note);
+  }
+  practiceSelectedNote = null;
+  renderPracticeChartEditor();
+});
+
+document.getElementById('practiceTotalBlocks').addEventListener('change', (e)=>{
+  const measures = Math.max(1, Math.min(10, parseInt(e.target.value,10)||1));
+  const n = measures*4;
+  while(practiceBlocks.length < n) practiceBlocks.push(createEmptyBlock(16));
+  while(practiceBlocks.length > n) practiceBlocks.pop();
+  const totalHalves = practiceBlocks.length*2;
+  practiceLongNotes = practiceLongNotes.filter(nn=> nn.startHalf < totalHalves);
+  practiceLongNotes.forEach(nn=>{ if(nn.startHalf+nn.lenHalf>totalHalves) nn.lenHalf = totalHalves-nn.startHalf; });
+  if(practiceBlockClipboardSourceIdx!==null && practiceBlockClipboardSourceIdx>=practiceBlocks.length){
+    practiceBlockClipboard = null; practiceBlockClipboardSourceIdx = null;
+  }
+  renderPracticeChartEditor();
+});
+document.getElementById('practiceClearAllBtn').addEventListener('click', ()=>{
+  practiceBlocks.forEach(block=> PRACTICE_LANES.forEach(lane=> block.cells[lane].fill(false)));
+  practiceLongNotes = [];
+  practiceSelectedNote = null;
+  renderPracticeChartEditor();
+});
+renderPracticeChartEditor();
+
+// ---- Save / load multiple named charts (localStorage) ----
+function practiceLoadSavedCharts(){
+  try{
+    const raw = safeGetStorage('sdvxSavedCharts');
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){ return {}; }
+}
+function practiceSaveSavedCharts(obj){ safeSetStorage('sdvxSavedCharts', JSON.stringify(obj)); }
+function practiceSetSaveStatus(msg){
+  document.getElementById('practiceSaveStatus').textContent = msg;
+}
+function practiceRefreshSavedList(selectName){
+  const sel = document.getElementById('practiceSavedList');
+  const charts = practiceLoadSavedCharts();
+  const names = Object.keys(charts).sort();
+  sel.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = '(保存された譜面)';
+  sel.appendChild(placeholder);
+  names.forEach(n=>{
+    const opt = document.createElement('option');
+    opt.value = n;
+    opt.textContent = n;
+    sel.appendChild(opt);
+  });
+  if(selectName && names.includes(selectName)) sel.value = selectName;
+}
+practiceRefreshSavedList();
+
+document.getElementById('practiceSaveBtn').addEventListener('click', ()=>{
+  const nameInput = document.getElementById('practiceSaveName');
+  const name = nameInput.value.trim();
+  if(!name){ practiceSetSaveStatus('譜面名を入力してください'); return; }
+  const charts = practiceLoadSavedCharts();
+  if(charts[name] && !confirm(`「${name}」は既に存在します。上書きしますか？`)) return;
+  if(!charts[name] && Object.keys(charts).length >= 10){
+    practiceSetSaveStatus('保存できる譜面は10件までです。不要な譜面を削除してから保存してください');
+    return;
+  }
+  const bpm = parseInt(document.getElementById('practicePlayBpm').value,10) || 150;
+  charts[name] = {
+    blocks: JSON.parse(JSON.stringify(practiceBlocks)),
+    longNotes: JSON.parse(JSON.stringify(practiceLongNotes)),
+    bpm
+  };
+  practiceSaveSavedCharts(charts);
+  practiceRefreshSavedList(name);
+  nameInput.value = '';
+  practiceSetSaveStatus(`「${name}」を保存しました`);
+});
+
+document.getElementById('practiceLoadBtn').addEventListener('click', ()=>{
+  const name = document.getElementById('practiceSavedList').value;
+  if(!name){ practiceSetSaveStatus('読み込む譜面を選んでください'); return; }
+  const charts = practiceLoadSavedCharts();
+  const data = charts[name];
+  if(!data) return;
+  practiceBlocks = JSON.parse(JSON.stringify(data.blocks));
+  practiceLongNotes = JSON.parse(JSON.stringify(data.longNotes));
+  if(data.bpm) document.getElementById('practicePlayBpm').value = data.bpm;
+  document.getElementById('practiceTotalBlocks').value = Math.max(1, Math.round(practiceBlocks.length/4));
+  practiceSelectedNote = null;
+  practiceBlockClipboard = null;
+  practiceBlockClipboardSourceIdx = null;
+  renderPracticeChartEditor();
+  practiceSetSaveStatus(`「${name}」を読み込みました`);
+});
+
+document.getElementById('practiceDeleteBtn').addEventListener('click', ()=>{
+  const sel = document.getElementById('practiceSavedList');
+  const name = sel.value;
+  if(!name){ practiceSetSaveStatus('削除する譜面を選んでください'); return; }
+  if(!confirm(`「${name}」を削除しますか？この操作は元に戻せません。`)) return;
+  const charts = practiceLoadSavedCharts();
+  delete charts[name];
+  practiceSaveSavedCharts(charts);
+  practiceRefreshSavedList();
+  practiceSetSaveStatus(`「${name}」を削除しました`);
+});
+
+// Converts the authored blocks + long notes into an absolute-time note
+// list at a given BPM. One block is always exactly one beat long,
+// regardless of its own subdivision; one half-block is always exactly
+// half a beat, regardless of any block's subdivision.
+function generateChartNotesFromBlocks(bpm){
+  const secPerBeat = 60/bpm;
+  const notes = [];
+  let tMs = 0;
+  practiceBlocks.forEach(block=>{
+    const stepsInBlock = block.subdivision/4;
+    const secPerStep = secPerBeat/stepsInBlock;
+    for(let step=0; step<stepsInBlock; step++){
+      const stepStart = tMs + step*secPerStep*1000;
+      PRACTICE_LANES.forEach(lane=>{
+        if(block.cells[lane][step]) notes.push({lane, start:stepStart, end:stepStart+40});
+      });
+    }
+    tMs += secPerBeat*1000;
+  });
+  const halfBeatMs = secPerBeat*1000/2;
+  practiceLongNotes.forEach(n=>{
+    const start = n.startHalf*halfBeatMs;
+    notes.push({ lane:n.lane, start, end: start+n.lenHalf*halfBeatMs });
+  });
+  return { notes, totalDurationMs: tMs };
+}
+
+let practiceRunning = false;
+let practiceTimers = [];
+let practicePlayRAF = null;
+function clearPracticeTimers(){ practiceTimers.forEach(id=>clearTimeout(id)); practiceTimers = []; }
+let practiceOnPlayScreen = false; // true whenever the play screen is showing, idle or running
+function stopPracticeRun(){
+  clearPracticeTimers();
+  if(practicePlayRAF){ cancelAnimationFrame(practicePlayRAF); practicePlayRAF = null; }
+  stopPracticeIdleLoop();
+  if(practiceRunning && isRecording) isRecording = false; // abandon an in-progress practice capture
+  practiceRunning = false;
+  document.getElementById('practiceStatus').textContent = '';
+  practiceOnPlayScreen = false;
+}
+
+// Lightweight capture reusing the same startNote/endNote hooks as the main
+// recorder (via the shared isRecording/recordedNotes globals), but WITHOUT
+// touching the Home "● 録画" button/status -- keeps the two systems visually
+// separate even though they share the same underlying plumbing.
+function practiceBeginCapture(){
+  isRecording = true;
+  recordStartT = performance.now();
+  recordedNotes = [];
+  recordedVol = { L:[], R:[] };
+  recLaneOpenIdx = {};
+}
+function practiceEndCapture(){
+  isRecording = false;
+  return { duration: performance.now()-recordStartT, notes: recordedNotes };
+}
+
+// Live flowing-chart view during the actual practice run: pre-scheduled
+// "official" notes (outline) approach and cross the "now" line exactly on
+// beat, while the player's real presses (filled -- reusing the same live
+// `notes` array Home draws from) are overlaid for instant feedback.
+// Same lane configuration as Playback: keyboard + VOL note strips (empty
+// here, since patterns don't include VOL) + a judge line + BT/FX buttons.
+// Shared by both the idle (pre-start) static frame and the running loop.
+function layoutPracticeArea(extraOffsetPx){
+  extraOffsetPx = extraOffsetPx || 0;
+  const area = document.getElementById('practicePlayArea');
+  const canvas = document.getElementById('practicePlayCanvas');
+  const scale = devicePixelRatio;
+  const w = area.clientWidth, h = area.clientHeight;
+  let kbFrameH = h, kbFrameW = kbFrameH*CANVAS_ASPECT;
+  let geom = computeFullGeometry(kbFrameW);
+  const availW = w - OPTIONS_PANEL_RESERVED_W - 20; // leave room for the options panel + a small side margin
+  if(geom.totalW > availW){
+    kbFrameW = availW / (geom.totalW / kbFrameW);
+    kbFrameH = kbFrameW/CANVAS_ASPECT;
+    geom = computeFullGeometry(kbFrameW);
+  }
+  // Center within the space LEFT of the options panel, not the full area
+  // width -- otherwise a wide-enough canvas (or narrow-enough window)
+  // pushes its right edge straight into the panel.
+  const canvasLeft = Math.max(10, ((w-OPTIONS_PANEL_RESERVED_W)-geom.totalW)/2);
+  const canvasTop = Math.max(0, (h-kbFrameH)/2);
+
+  canvas.style.position = 'absolute';
+  canvas.style.left = canvasLeft+'px';
+  canvas.style.top = canvasTop+'px';
+  canvas.style.width = geom.totalW+'px';
+  canvas.style.height = kbFrameH+'px';
+  canvas.width = geom.totalW*scale;
+  canvas.height = kbFrameH*scale;
+
+  // extraOffsetPx (the judge-line-position offset, converted to CSS px)
+  // shifts EVERYTHING tied to "where the judge line is" together -- the
+  // line itself, the mask below it, the VOL indicators, and the button
+  // row -- so they always agree with each other and with where notes
+  // actually cross in the canvas.
+  const judgeOffsetPx = Math.max(20, kbFrameH*PLAYBACK_JUDGE_RATIO + extraOffsetPx);
+  document.getElementById('practiceJudgeLine').style.left = canvasLeft+'px';
+  document.getElementById('practiceJudgeLine').style.width = geom.totalW+'px';
+  document.getElementById('practiceJudgeLine').style.top = (canvasTop+judgeOffsetPx)+'px';
+
+  const belowMask = document.getElementById('practiceBelowMask');
+  belowMask.style.left = canvasLeft+'px';
+  belowMask.style.width = geom.totalW+'px';
+  belowMask.style.top = (canvasTop+judgeOffsetPx+2)+'px';
+  belowMask.style.height = Math.max(0,(canvasTop+kbFrameH)-(canvasTop+judgeOffsetPx+2))+'px';
+
+  const indL = document.getElementById('practiceVolIndicatorL');
+  const indR = document.getElementById('practiceVolIndicatorR');
+  const pracBtUnit = kbFrameW/4, pracBtSquareSize = pracBtUnit*0.55*1.3;
+  const pracBtCenterY = canvasTop+judgeOffsetPx+13 + pracBtSquareSize/2;
+  // Both indicators share the SAME full-width coordinate frame (see the
+  // matching comment in resizeCanvas) so each arrow can sit at its exact
+  // computed lane-x (geom.volOuter*/volInner*).
+  [indL, indR].forEach(ind=>{
+    ind.style.left = canvasLeft+'px';
+    ind.style.width = geom.totalW+'px';
+    ind.style.top = pracBtCenterY+'px';
+    ind.style.transform = 'translateY(-50%)';
+  });
+  document.getElementById('practiceVolArrowL_neg').style.left = geom.volOuterL+'px';
+  document.getElementById('practiceVolArrowL_pos').style.left = geom.volInnerL+'px';
+  document.getElementById('practiceVolArrowR_neg').style.left = geom.volInnerR+'px';
+  document.getElementById('practiceVolArrowR_pos').style.left = geom.volOuterR+'px';
+
+  positionBtnRow(
+    document.getElementById('btnRowPractice'), 'btnSquarePractice', 'btnFxPractice',
+    canvasLeft+geom.kbOffset, kbFrameW, canvasTop+judgeOffsetPx+13
+  );
+
+  return { geom, kbFrameW, kbFrameH, judgeOffsetPx };
+}
+
+// Draws a single static frame (no notes, neutral buttons) -- shown while
+// waiting on the play screen before the player presses the inner start
+// button, so switching to this screen doesn't imply anything has begun yet.
+let practiceIdleRAF = null;
+function stopPracticeIdleLoop(){
+  if(practiceIdleRAF){ cancelAnimationFrame(practiceIdleRAF); practiceIdleRAF = null; }
+}
+// Runs continuously while waiting on the play screen (before the inner
+// "スタート" is pressed) -- shows the judge-line offset moving live as it's
+// adjusted, and lights up buttons/key beams for presses made while waiting,
+// instead of a single static frame that never updates.
+function runPracticeIdleLoop(){
+  const canvas = document.getElementById('practicePlayCanvas');
+  const pctx = canvas.getContext('2d');
+  const scale = devicePixelRatio;
+  const BEAM_DURATION_MS = 220;
+
+  function frame(){
+    if(!practiceOnPlayScreen || practiceRunning){ practiceIdleRAF = null; return; }
+    const { geom, judgeOffsetPx } = layoutPracticeArea(-options.practiceJudgeLineOffset);
+    const W = canvas.width, H = canvas.height;
+    pctx.clearRect(0,0,W,H);
+    pctx.fillStyle = COLORS.bg; pctx.fillRect(0,0,W,H);
+    const layout = computeLayout(geom.totalW*scale - 2*geom.kbOffset*scale, geom.kbOffset*scale);
+    const judgeY = judgeOffsetPx*scale;
+
+    pctx.fillStyle = COLORS.laneBg;
+    pctx.fillRect(layout.offsetX, 0, layout.leftW, H);
+    pctx.strokeStyle = COLORS.grid; pctx.lineWidth = 1*scale;
+    for(let i=0;i<=4;i++){
+      const x = layout.offsetX + layout.unit*i;
+      pctx.beginPath(); pctx.moveTo(x,0); pctx.lineTo(x,H); pctx.stroke();
+    }
+
+    const fxGeom = { fxL:[layout.btX('btA'), layout.unit*2], fxR:[layout.btX('btC'), layout.unit*2] };
+    function btGeom(lane){ const x=layout.btX(lane); const w=layout.unit*0.9; return [x+(layout.unit-w)/2, w]; }
+    function geomFor(lane){ return lane.startsWith('fx') ? fxGeom[lane] : btGeom(lane); }
+
+    const beamH = judgeY*0.25;
+    const now = performance.now();
+    LANES.forEach(lane=>{
+      let last = null;
+      for(let i=notes.length-1;i>=0;i--){ if(notes[i].lane===lane){ last = notes[i]; break; } }
+      if(!last) return;
+      const age = now - last.start;
+      if(age < 0 || age >= BEAM_DURATION_MS) return;
+      const alpha = 1 - age/BEAM_DURATION_MS;
+      const [x,w] = geomFor(lane);
+      const grad = pctx.createLinearGradient(0, judgeY, 0, judgeY-beamH);
+      grad.addColorStop(0, hexToRgba(LANE_COLOR[lane], alpha*0.65));
+      grad.addColorStop(1, hexToRgba(LANE_COLOR[lane], 0));
+      pctx.fillStyle = grad;
+      pctx.fillRect(x, judgeY-beamH, w, beamH);
+    });
+
+    layout.BT_ORDER.forEach(lane=>{
+      const el = document.getElementById(`btnSquarePractice_${lane}`);
+      if(el) el.classList.toggle('active', laneState[lane].pressed);
+    });
+    ['fxL','fxR'].forEach(lane=>{
+      const el = document.getElementById(`btnFxPractice_${lane}`);
+      if(el) el.classList.toggle('active', laneState[lane].pressed);
+    });
+
+    practiceIdleRAF = requestAnimationFrame(frame);
+  }
+  practiceIdleRAF = requestAnimationFrame(frame);
+}
+
+function runPracticePlayLoop(officialNotes, totalDurationMs, runStartT, measureTimesMs){
+  const canvas = document.getElementById('practicePlayCanvas');
+  const pctx = canvas.getContext('2d');
+  const scale = devicePixelRatio;
+  const BEAM_DURATION_MS = 220;
+  measureTimesMs = measureTimesMs || [];
+
+  function frame(){
+    if(!practiceRunning) return;
+    const elapsedMs = performance.now() - runStartT;
+    const { geom, judgeOffsetPx } = layoutPracticeArea(-options.practiceJudgeLineOffset);
+    const W = canvas.width, H = canvas.height;
+    pctx.clearRect(0,0,W,H);
+    pctx.fillStyle = COLORS.bg; pctx.fillRect(0,0,W,H);
+
+    const layout = computeLayout(geom.totalW*scale - 2*geom.kbOffset*scale, geom.kbOffset*scale);
+    const judgeY = judgeOffsetPx*scale;
+
+    pctx.fillStyle = COLORS.laneBg;
+    pctx.fillRect(layout.offsetX, 0, layout.leftW, H);
+    pctx.strokeStyle = COLORS.grid; pctx.lineWidth = 1*scale;
+    for(let i=0;i<=4;i++){
+      const x = layout.offsetX + layout.unit*i;
+      pctx.beginPath(); pctx.moveTo(x,0); pctx.lineTo(x,H); pctx.stroke();
+    }
+
+    // Notes fall from above toward the judge line, reaching it exactly at
+    // their scheduled time -- the classic falling-note direction, same as
+    // how Playback's canvas reads when scrolled (content moves down through
+    // the fixed viewport).
+    function yFromMs(t){ return judgeY + (elapsedMs - t)/1000*speed*scale; }
+
+    // 小節線: notes と同じ yFromMs() で位置を出すので、スクロール速度が
+    // 変わってもノーツと完全に同期して流れる。
+    pctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    pctx.lineWidth = 2*scale;
+    measureTimesMs.forEach(t=>{
+      const y = yFromMs(t);
+      if(y < -4*scale || y > H+4*scale) return;
+      pctx.beginPath();
+      pctx.moveTo(layout.offsetX, y);
+      pctx.lineTo(layout.offsetX+layout.leftW, y);
+      pctx.stroke();
+    });
+
+    const TAP_H = 10*scale;
+    const fxGeom = { fxL:[layout.btX('btA'), layout.unit*2], fxR:[layout.btX('btC'), layout.unit*2] };
+    function btGeom(lane){ const x=layout.btX(lane); const w=layout.unit*0.9; return [x+(layout.unit-w)/2, w]; }
+    function geomFor(lane){ return lane.startsWith('fx') ? fxGeom[lane] : btGeom(lane); }
+
+
+    // "Key beam": a brief fading column of light shooting up from the judge
+    // line the instant a lane is pressed, so a press actually feels like it
+    // landed (not just a static button-light flip). Only the bottom
+    // quarter of the lane, right by the line -- not the whole lane height.
+    const beamH = judgeY * 0.25;
+    const now = performance.now();
+    LANES.forEach(lane=>{
+      let last = null;
+      for(let i=notes.length-1;i>=0;i--){ if(notes[i].lane===lane){ last = notes[i]; break; } }
+      if(!last) return;
+      const age = now - last.start;
+      if(age < 0 || age >= BEAM_DURATION_MS) return;
+      const alpha = 1 - age/BEAM_DURATION_MS;
+      const [x,w] = geomFor(lane);
+      const grad = pctx.createLinearGradient(0, judgeY, 0, judgeY-beamH);
+      grad.addColorStop(0, hexToRgba(LANE_COLOR[lane], alpha*0.65));
+      grad.addColorStop(1, hexToRgba(LANE_COLOR[lane], 0));
+      pctx.fillStyle = grad;
+      pctx.fillRect(x, judgeY-beamH, w, beamH);
+    });
+
+    function drawOfficialTap(n){
+      const yStart = yFromMs(n.start);
+      if(yStart < -60*scale || yStart > H+60*scale) return;
+      const [x,w] = geomFor(n.lane);
+      pctx.fillStyle = LANE_COLOR[n.lane];
+      // Bottom-aligned to its exact timing line (the note's head/hit point
+      // is its bottom edge), not top-aligned -- matches the bottom-align
+      // convention used everywhere else (譜面作成 editor/preview).
+      pctx.fillRect(x, yStart-TAP_H, w, TAP_H);
+    }
+    function drawOfficialHold(n){
+      const yStart = yFromMs(n.start), yEnd = yFromMs(n.end);
+      if(yStart < -60*scale || yEnd > H+60*scale) return;
+      const [x,w] = geomFor(n.lane);
+      const top = Math.min(yStart,yEnd), bottom = Math.max(yStart,yEnd)+TAP_H;
+      // Same "grooved" gradient look used everywhere else (プレイ, 録画再生,
+      // 譜面作成) -- this used to be a flat fill here, an old skin left
+      // over from before that style existed.
+      const colorHex = LANE_COLOR[n.lane];
+      const dark = darkenHex(colorHex, n.lane.startsWith('fx') ? 0.62 : 0.72);
+      const grad = pctx.createLinearGradient(x, 0, x+w, 0);
+      grad.addColorStop(0, colorHex); grad.addColorStop(0.5, dark); grad.addColorStop(1, colorHex);
+      pctx.fillStyle = grad;
+      pctx.fillRect(x, top, w, bottom-top);
+    }
+    // Layering (bottom to top): FX-long, BT-long, FX-tap, BT-tap -- same
+    // order as everywhere else. officialNotes isn't grouped by type on its
+    // own (taps and longs are interleaved in whatever order the chart
+    // produced them), so BT taps were ending up drawn UNDER FX longs
+    // whenever a long happened to come later in that array -- draw each
+    // group as its own pass instead of one single forEach.
+    const isHold = n => (n.end-n.start) > 60; // longer than a nominal tap's ~40ms
+    officialNotes.filter(n=> n.lane.startsWith('fx') && isHold(n)).forEach(drawOfficialHold);
+    officialNotes.filter(n=> !n.lane.startsWith('fx') && isHold(n)).forEach(drawOfficialHold);
+    officialNotes.filter(n=> n.lane.startsWith('fx') && !isHold(n)).forEach(drawOfficialTap);
+    officialNotes.filter(n=> !n.lane.startsWith('fx') && !isHold(n)).forEach(drawOfficialTap);
+    // actual live input (filled) -- the shared `notes` array is always kept
+    // up to date by startNote/endNote regardless of isRecording.
+    notes.filter(n=> n.start >= runStartT - 2000).forEach(n=>{
+      const relStart = n.start - runStartT;
+      const y = yFromMs(relStart);
+      if(y < -60*scale || y > H+60*scale) return;
+      const [x,w] = geomFor(n.lane);
+      pctx.fillStyle = LANE_COLOR[n.lane];
+      pctx.fillRect(x, y-TAP_H, w, TAP_H);
+    });
+
+    // BT/FX button lights, same as Home/Playback.
+    layout.BT_ORDER.forEach(lane=>{
+      const el = document.getElementById(`btnSquarePractice_${lane}`);
+      if(el) el.classList.toggle('active', laneState[lane].pressed);
+    });
+    ['fxL','fxR'].forEach(lane=>{
+      const el = document.getElementById(`btnFxPractice_${lane}`);
+      if(el) el.classList.toggle('active', laneState[lane].pressed);
+    });
+
+    if(elapsedMs < totalDurationMs + 1000){
+      practicePlayRAF = requestAnimationFrame(frame);
+    }
+  }
+  practicePlayRAF = requestAnimationFrame(frame);
+}
+
+// Called whenever the プレイ sub-tab becomes active: shows either the
+// "no chart yet" message or the idle (pre-start) live preview.
+// The canvas/judge-line/VOL-indicator/button-row cluster is only ever
+// positioned by layoutPracticeArea(), which runs inside the idle/running
+// loops -- so when there's no chart, those loops never start and every one
+// of those elements would otherwise sit at its unstyled default position
+// (stray shapes in random corners). Explicitly hide the whole cluster in
+// that case, and restore it before starting the idle loop otherwise.
+const PRACTICE_PLAY_STAGE_IDS = [
+  'practicePlayCanvas','practiceJudgeLine','practiceBelowMask',
+  'practiceVolIndicatorL','practiceVolIndicatorR','btnRowPractice'
+];
+function setPracticePlayStageVisible(visible){
+  PRACTICE_PLAY_STAGE_IDS.forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = visible ? '' : 'none';
+  });
+}
+// The status pill has its own background/padding, so leaving it in the DOM
+// with empty text still renders as a floating blank capsule -- hide it
+// whenever there's nothing to say.
+function setPracticePlayStatus(text){
+  const el = document.getElementById('practicePlayStatus');
+  el.textContent = text;
+  el.style.display = text ? '' : 'none';
+}
+function enterPracticePlayScreen(){
+  setPracticePlayStatus('');
+  updatePracticeStartStopBtn();
+  if(practiceChartIsEmpty()){
+    setPracticePlayStageVisible(false);
+    document.getElementById('practiceEmptyMsg').style.display = 'flex';
+    document.getElementById('practicePlayStartBtn').disabled = true;
+    stopPracticeIdleLoop();
+    return;
+  }
+  setPracticePlayStageVisible(true);
+  document.getElementById('practiceEmptyMsg').style.display = 'none';
+  document.getElementById('practicePlayStartBtn').disabled = false;
+  practiceOnPlayScreen = true;
+  runPracticeIdleLoop();
+}
+
+// The start/stop button is a single toggle: its own label flips between
+// "▶ スタート" and "■ ストップ" depending on whether a run is currently
+// in progress, rather than being two separate buttons for the same
+// on/off concept.
+function updatePracticeStartStopBtn(){
+  document.getElementById('practicePlayStartBtn').textContent = practiceRunning ? 'やり直し' : '▶ スタート';
+}
+
+// Clicking the toggle button WHILE running calls this: interrupts the
+// current run and resets back to the pre-start idle preview.
+function resetPracticeToIdle(){
+  clearPracticeTimers();
+  if(practicePlayRAF){ cancelAnimationFrame(practicePlayRAF); practicePlayRAF = null; }
+  if(practiceRunning && isRecording) isRecording = false; // abandon an in-progress practice capture
+  practiceRunning = false;
+  updatePracticeStartStopBtn();
+  setPracticePlayStatus('');
+  practiceOnPlayScreen = true;
+  runPracticeIdleLoop();
+}
+
+function startPracticePlayRun(){
+  if(practiceRunning) return;
+  if(practiceChartIsEmpty()){
+    document.getElementById('practiceStatus').textContent = '譜面が空です。「譜面作成」タブでノーツを配置してください。';
+    return;
+  }
+  if(isRecording){
+    document.getElementById('practiceStatus').textContent = '「プレイ」タブで録画中はここからプレイを開始できません。録画を停止してください。';
+    return;
+  }
+  ensureAudioCtx();
+  stopPracticeIdleLoop();
+
+  const bpm = parseInt(document.getElementById('practicePlayBpm').value,10) || 150;
+  practiceRunning = true;
+  updatePracticeStartStopBtn();
+  clearPracticeTimers();
+
+  const secPerBeat = 60/bpm;
+  const { notes: chartNotes, totalDurationMs: patternDurationMs } = generateChartNotesFromBlocks(bpm);
+
+  // A short lead-in so the first notes scroll smoothly down from above
+  // instead of appearing already at the judge line.
+  const leadInMs = 2*4*secPerBeat*1000;
+  const mirrorOn = document.getElementById('practiceMirrorToggle').checked;
+  const MIRROR_LANE = { btA:'btD', btB:'btC', btC:'btB', btD:'btA', fxL:'fxR', fxR:'fxL' };
+  const officialNotes = chartNotes.map(n => ({ lane: mirrorOn ? MIRROR_LANE[n.lane] : n.lane, start:n.start+leadInMs, end:n.end+leadInMs }));
+  // 小節線: 1ブロック=1拍なので、4ブロックごと(=1小節)の境界時刻をあらかじめ
+  // 計算しておく。リードイン(2小節分の空走)にも線を流したいので、譜面の
+  // 先頭(beatIdx=0)より前、リードイン開始位置(-2小節=-8拍)から生成する。
+  const measureTimesMs = [];
+  for(let beatIdx=-8; beatIdx<=practiceBlocks.length; beatIdx+=4){
+    measureTimesMs.push(leadInMs + beatIdx*secPerBeat*1000);
+  }
+  const visualStartT = performance.now();
+  const MODAL_DELAY_MS = 1000; // extra pause after the chart finishes flowing, before showing the result modal
+  runPracticePlayLoop(officialNotes, leadInMs+patternDurationMs, visualStartT, measureTimesMs);
+
+  // Count-in: 4 clicks landing on the last 4 beats of the lead-in, right up
+  // to (but not including) the chart's actual first beat -- so the click
+  // right before silence establishes the tempo instead of the player
+  // guessing where beat 1 falls.
+  if(document.getElementById('practiceCountInToggle').checked){
+    const countInBeats = 4;
+    for(let i=0;i<countInBeats;i++){
+      const tMs = leadInMs - countInBeats*secPerBeat*1000 + i*secPerBeat*1000;
+      practiceTimers.push(setTimeout(()=>{ playMetronomeClick(i===0); }, Math.max(0,tMs)));
+    }
+  }
+
+  setPracticePlayStatus('再生中...');
+  // Start capturing from the very start of the lead-in (not just once the
+  // actual chart begins) so reviewing this run in "再生" shows the same
+  // empty run-up the player saw live, instead of jumping straight to the
+  // first note.
+  practiceBeginCapture();
+
+  practiceTimers.push(setTimeout(()=>{
+    practiceTimers.push(setTimeout(()=>{
+      const captured = practiceEndCapture();
+      practiceRunning = false;
+      updatePracticeStartStopBtn();
+      setPracticePlayStatus('');
+
+      // Hand the captured input off to the SAME "録画" data the Playback
+      // tab already knows how to display -- no separate comparison screen,
+      // just review it exactly like any other recording. measureTimesMs
+      // rides along too (already relative to the same t=0 as the capture,
+      // since both started together) so Playback can draw the same bar
+      // lines the player saw live.
+      lastRecording = { duration: captured.duration, notes: captured.notes, vol: { L:[], R:[] }, measureTimesMs };
+      showPracticeResultModal();
+    }, patternDurationMs + MODAL_DELAY_MS));
+  }, leadInMs));
+}
+document.getElementById('practicePlayStartBtn').addEventListener('click', ()=>{
+  if(practiceRunning) resetPracticeToIdle();
+  else startPracticePlayRun();
+});
+
+/* ---------------- Practice: end-of-run result modal ---------------- */
+function showPracticeResultModal(){
+  document.getElementById('practiceResultModal').style.display = 'flex';
+}
+function hidePracticeResultModal(){
+  document.getElementById('practiceResultModal').style.display = 'none';
+}
+document.getElementById('practiceModalReviewBtn').addEventListener('click', ()=>{
+  hidePracticeResultModal();
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelector('.tab[data-view="playbackView"]').classList.add('active');
+  document.getElementById('playbackView').classList.add('active');
+  renderPlayback();
+});
+document.getElementById('practiceModalRetryBtn').addEventListener('click', ()=>{
+  hidePracticeResultModal();
+  enterPracticePlayScreen();
+});
+
+</script>
+</body>
+</html>
