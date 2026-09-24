@@ -475,13 +475,13 @@
     <div id="playbackView" class="view" style="flex-direction:column;">
       <div style="padding:8px 16px;border-bottom:1px solid var(--line);font-size:12px;color:var(--text-dim);flex-shrink:0;display:flex;align-items:center;gap:12px;">
         <span id="playbackInfo" style="flex-shrink:0;">録画がありません</span>
+        <button id="playbackPlayBtn" style="flex-shrink:0;">▶ 再生</button>
         <input type="range" id="pbSeekBar" min="0" max="1000" value="0" disabled style="flex:1;min-width:60px;">
       </div>
       <div id="playbackViewport" style="position:relative; flex:1; overflow:hidden;">
         <div id="pbOptionsPanel" class="panel fixedPanel" style="position:absolute; right:16px; top:16px; width:240px; z-index:20;">
           <div class="panelHeader">オプション</div>
-          <button id="playbackPlayBtn" style="width:100%; margin-bottom:10px;">▶ 再生</button>
-          <div class="inline-check" style="justify-content:space-between; margin-bottom:8px; border-top:1px solid var(--line); padding-top:10px;">
+          <div class="inline-check" style="justify-content:space-between; margin-bottom:8px;">
             <span style="color:#fff;">スクロール速度</span>
             <span id="pbSpeedLevelVal" style="color:var(--text);">70</span>
           </div>
