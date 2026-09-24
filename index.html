@@ -1814,18 +1814,27 @@ function drawVolNoteBars(ctxObj, samples, negCenterX, posCenterX, colW, colorHex
     let j = i;
     while(j+1 < samples.length && samples[j+1].session === samples[i].session) j++;
 
-    let segStart = i, curDir = null;
+    let segStart = i, curDir = null, lastKnownDir = null;
     for(let k=i; k<j; k++){
       const d = Math.sign(samples[k+1].v - samples[k].v);
       if(d===0) continue; // flat step -- keep extending the current run
       if(curDir===null) curDir = d;
       else if(d !== curDir){
         emitBar(segStart, k, curDir, samples);
+        lastKnownDir = curDir;
         segStart = k;
         curDir = d;
       }
     }
-    emitBar(segStart, j, curDir || 1, samples);
+    // The final (possibly still in-progress) run can end up with curDir
+    // still null -- e.g. once old pruned-away samples leave only a flat
+    // (zero-diff) tail behind, or the run has barely started this frame.
+    // That's "direction not yet re-established", NOT "turning right" --
+    // defaulting it to 1 unconditionally (the old bug) could flip an
+    // already-drawn LEFT bar's leftover tail to the RIGHT column the very
+    // next frame. Inherit the session's last known direction instead, and
+    // only fall back to a hardcoded default if this session never had one.
+    emitBar(segStart, j, curDir!==null ? curDir : (lastKnownDir!==null ? lastKnownDir : 1), samples);
     i = j+1;
   }
 }
