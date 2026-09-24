@@ -41,6 +41,29 @@
     background: linear-gradient(90deg, var(--vol-l), var(--vol-r));
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
+  #splashScreen{
+    position:fixed; inset:0; z-index:1000;
+    background: radial-gradient(ellipse at center, #1c2333 0%, #0a0e18 75%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:22px; transition: opacity .35s ease;
+  }
+  #splashScreen.hidden{ opacity:0; pointer-events:none; }
+  #splashTitle{
+    font-weight:800; letter-spacing:4px; font-size:clamp(30px, 6vw, 56px);
+    background: linear-gradient(90deg, var(--vol-l), var(--vol-r));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow: 0 0 40px rgba(123,215,255,0.25);
+  }
+  #splashSub{ color:var(--text-dim); font-size:13px; letter-spacing:1px; }
+  #splashStart{
+    margin-top:10px; padding:10px 34px; font-size:14px; font-weight:700; letter-spacing:2px;
+    background:transparent; color:var(--text); border:1px solid var(--vol-l); border-radius:24px;
+    animation: splashPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes splashPulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(123,215,255,0.35); }
+    50%{ box-shadow:0 0 0 8px rgba(123,215,255,0); }
+  }
   .status{
     font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:6px;
   }
@@ -253,6 +276,11 @@
 </style>
 </head>
 <body>
+  <div id="splashScreen">
+    <div id="splashTitle">SDVX INPUT CHECK</div>
+    <div id="splashSub">SDVX専用の入力可視化ツール</div>
+    <button id="splashStart">START ▶</button>
+  </div>
 <div id="app">
 
   <header>
@@ -1666,6 +1694,14 @@ function poll(){
   requestAnimationFrame(poll);
 }
 requestAnimationFrame(poll);
+
+// ---- Splash / title screen ----
+function dismissSplash(){
+  const splash = document.getElementById('splashScreen');
+  splash.classList.add('hidden');
+  setTimeout(()=>{ splash.style.display = 'none'; }, 350);
+}
+document.getElementById('splashStart').addEventListener('click', dismissSplash);
 
 /* ---------------- Drawing ---------------- */
 const COLORS = {
